@@ -1,0 +1,166 @@
+COMPUTER DISAJN
+
+# Registers:
+- all registers are 8 bit, when we want to use 16 bit operations, we use regxhi names
+## user registers (user can use them):
+
+reg0 (user cannot write into it), when the user triggers an ALU operation, the result is written into this registers
+reg0hi
+reg1 - user can user them as he wants
+reg1Hi
+reg2 - also
+reg2Hi
+
+## system registers:
+
+### bridge registers
+- they are written as a bridge to every register, so we dont have to wire every register to every register, just to bridge, also only 8 bit register, like the user ones, are linked only to non hi versions of those register
+- also when something like movRegReg is issued, it works like transporting the rega to bridgeA, then to regb
+- bridge is also linked dirrectly into ALU, so an ALU operation is from bridge
+bridgeA
+bridgeAhi
+bridgeB
+bridgeBhi
+
+### operation registers
+
+opkode
+(vars = operands)
+var1
+var2
+var3
+var4
+
+### AlU registers
+
+ALU out
+ALU out hi
+
+### RAM pointers
+
+instructionPointer - starting value is 1
+instructionPointerHi
+
+
+### flags
+comparison flag - normally high, when the opkode is a comparison it get's turned off, it desides if the next cmd gets turned on, or not, ofcourse if the result of the comparison is true, the flag gets turned on
+comparison support flag - ussually 1, set to 0 when a comparison is done, gatekeeps the comparison flag to be changed only when this is 1
+-- reseting comparisons? -> always after an instuction has been done, and this way: first reset the comparison flag (will do nothing if the support flag is not), than the support flag
+carryAluIn - used in 2's compliment
+carryAluOut - utulized in 16 bit operation
+ramOutOkBit - when using an operation requiring the usage of RAM, we will pull first the data to bridge, second we will pull the 0 byte of RAM, becouse as the first byte of RAM is not utilized, we can store a 1 in there, and use it as an job is done type info
+
+# Instructions
+- use smart messuares when making the opkodes, like making different categories have different 2 bit levels, which are otherwise unused (for example, we can have the moving instructions have instr like: 1xx and than no other category will have the 1 on 3rd spot, so that other opkodes will be like: ...xxx0xx)
+- unknown instruction opkode = nop
+
+## ALU instructions - 10 ops - 001xx0xx
+- 8 symbolizes an 8 bit operation
+- 16 symbolizes a 16 bit operation, using Hi from bridge
+- if the operation only requires 1 number, than the number is taken from bridgeA and bridgeAHi, otherwise it is bridgeA + bridgeB
+- a 16 bit operation is performed on the 8 bit counter like this: counts the non Hi bridges, than uses the carry (in addition), where it stores 1 bit of info, than it wires this carry into the first carry bit of the adder
+- in non carry bit operations, the carry bit is not necessary and it is performed as 2 disticnt operations
+- an 8 bit operation can be used as in the context of opand + opand, OR an reg + reg / reg + opand operation, using the other unused vars, as if's to this operation
+and8
+and16
+not8
+not16
+or8
+or16
+add8
+add16
+increment8 - just turns on carry 1 in the adder
+increment16
+
+## combined instructions - 2 ops (with alu ops)
+- performed in multiple ticks
+sub8 - using 2's compliment: use not8 on number 2, than add with carry bit on
+sub16
+
+## moving instructions - 4 ops - starts as: 000001xx
+- loading from RAM is also going to busA
+- when goining from reg to reg, also goes from reg to bus to reg
+- from where to where, in that order, also shown in the operands in that way
+- becouse addresses in RAM are 16 bit, it uses 2 vars (operands)
+- in ops with RAM, address 0 means take the reg0 with hi as an address, the real first adress in RAM is 1
+movRegReg
+movRamReg
+movRegRam
+movRamRam
+
+## comparative operations - 6 ops - 010xx0xx
+- turn on/off the comparison flag
+biggerThan8
+smallerThan8
+equals8
+biggerThan16
+smallerThan16
+equals16
+
+
+## operative operations 110xx0xx (a bit unique code, but it can be decoded with 1 and gate)
+setReg - 1 var is the register which is being set, second var is the value (again using bridge)
+nop - does nothing, skips to next instruction
+jump - does add to the instruction pointer
+halt - stops the clock -> implies stopping the entire machine
+
+
+## external instructions - 100xx0xx
+- yet to be filled with cmds like display on screne etc...
+
+
+# Loading from RAM
+how it works -> the data will be loaded to bridgeA, from where the path is than interpreted based on to which register it wants to go to
+also bridgeB is used as the adress to RAM when loading from RAM
+also the takt clock is disconnected during the
+also when uploading to RAM, same trick is used: we upload and download this ok sign
+code 0 also just uses ALU out
+
+# Copying
+- the register are wired to the bridges in a 2 way method, where it can either copy itself to the bridge, or copy the bridge to it
+
+
+# Operating
+- the whole system relies on the way the CPU works (the CPU is bassicly), is so that all the registers are wired to the bridges etc... and when the time comes, the valves holding the copying pipes are open, and we copy and reset the chosen regs
+
+--fetch
+- when I say load from RAM, it will open the copying valve from bridgeA to var1
+0. takt: load the instructionPointer into bridgeB
+1. takt: load the opkode from the position in RAM (bridgeB)
+2. takt: load the instructionPointer into bridgeA
+3. takt: increment
+4. takt: load from RAM with code 0 (from ALU out) var1
+5. takt: load ALU out into bridgeA
+6. takt: increment
+7. takt: load from RAM with code 0 (from ALU out) var2
+8. takt: load ALU out into bridgeA
+9. takt: increment
+10. takt: load from RAM with code 0 (from ALU out) var3
+11. takt: load ALU out into bridgeA
+12. takt: increment
+13. takt: load ALU out into bridgeA
+14. takt: load from RAM with code 0 (from ALU out) var4
+15. takt: increment
+16. takt: load ALU out into bridgeA
+17. takt: load bridgeA to instructionPointer
+--decode
+18. takt: digest the opcode using an series of and & not gates, and prepare the valve openings
+--execute
+19. takt: allow the valves to be open
+20. takt: close the valves
+21. takt: repeat
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

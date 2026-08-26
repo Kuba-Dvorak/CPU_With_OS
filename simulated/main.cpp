@@ -113,8 +113,8 @@ void alu(AluOp op) {
     case ALU_SUB8:  carryIn = 1; alu(ALU_NOT); addCore(false); break;
     case ALU_SUB16: carryIn = 1; alu(ALU_NOT16); addCore(true); break;
 
-    case ALU_NOT:   aluStore((uint8_t)~busA, 0); break;
-    case ALU_NOT16: aluStore((uint8_t)~busA, (uint8_t)~busAHi); break;
+    case ALU_NOT:   aluStore((uint8_t)~busB, 0); break;
+    case ALU_NOT16: aluStore((uint8_t)~busB, (uint8_t)~busBHi); break;
 
     case ALU_SHL:   aluStore((uint8_t)(busA << busB), 0); break;
     case ALU_SHR:   aluStore((uint8_t)(busA >> busB), 0); break;
@@ -168,15 +168,13 @@ uint8_t regRead(uint8_t idx) {
         case R_OP3:      return op3;       case R_OP4:      return op4;
         case R_OPCODE:   return opcode;
     }
-    fault("neznamy index registru pri cteni");
     return 0;
 }
 
 void regWrite(uint8_t idx, uint8_t v) {
     switch (idx) {
         // vystupy ALU jsou jen pro cteni
-        case R_REG0: case R_REG0HI: case R_ALUOUT: case R_ALUOUTHI:
-            fault("zapis do vystupu ALU - jen pro cteni"); return;
+        case R_REG0: case R_REG0HI: case R_ALUOUT: case R_ALUOUTHI: return;
         case R_REG1:   reg1   = v; return;   case R_REG2:   reg2   = v; return;
         case R_BUSA:   busA   = v; return;   case R_BUSAHI: busAHi = v; return;
         case R_BUSB:   busB   = v; return;   case R_BUSBHI: busBHi = v; return;
@@ -184,7 +182,6 @@ void regWrite(uint8_t idx, uint8_t v) {
         case R_OP3:    op3    = v; return;   case R_OP4:    op4    = v; return;
         case R_OPCODE: opcode = v; return;
     }
-    fault("neznamy index registru pri zapisu");
 }
 
 void toBusA(uint8_t idx)   { busA = regRead(idx); }
@@ -230,7 +227,6 @@ void operateOperation() {
     switch (opcode) {
 
     case 0:
-        fault("halt");
         break;
 
     // --- aritmetika ------------------------------------------------------
