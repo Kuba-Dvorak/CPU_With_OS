@@ -1,0 +1,68 @@
+# Instructions
+- use smart messuares when making the opkodes, like making different categories have different 2 bit levels, which are otherwise unused (for example, we can have the moving instructions have instr like: 1xx and than no other category will have the 1 on 3rd spot, so that other opkodes will be like: ...xxx0xx)
+- unknown instruction opkode = nop
+
+## ALU instructions - 11 ops - 001xx0xx
+- 8 symbolizes an 8 bit operation
+- 16 symbolizes a 16 bit operation, using Hi from bridge
+- if the operation only requires 1 number, than the number is taken from bridgeA and bridgeAHi, otherwise it is bridgeA + bridgeB
+- a 16 bit operation is performed on the 8 bit counter like this: counts the non Hi bridges, than uses the carry (in addition), where it stores 1 bit of info, than it wires this carry into the first carry bit of the adder
+- in non carry bit operations, the carry bit is not necessary and it is performed as 2 disticnt operations
+and
+andReg
+or
+orReg
+not
+notReg
+add8
+add16
+addReg
+sub8 - using 2's compliment: use not8 on number 2, than add with carry bit on
+sub16
+subReg
+
+
+## moving instructions - 4 ops - starts as: 000001xx
+- loading from RAM is also going to busA
+- when goining from reg to reg, also goes from reg to bus to reg
+- from where to where, in that order, also shown in the operands in that way
+- becouse addresses in RAM are 16 bit, it uses 2 vars (operands)
+- in ops with RAM, address 0 means take the reg0 with hi as an address, the real first adress in RAM is 1
+
+
+movRegReg
+
+- register are 16 bit, but RAM is 8 bit, so one var4 (RamReg) or var2(RegRam) decides if it is a 8 bit move, or a 16 bit move 
+movRamReg
+movRegRam
+
+movRamRam
+
+
+
+## comparative & operative operations - 2 ops - 010xx0xx
+- turn on/off the comparison flag
+comparison (8 bit)
+comparisonReg (16 bit, but Reg)
+
+
+## operative operations 010xx0xx (a bit unique code, but it can be decoded with 1 and gate) - 4 ops
+setReg - 1 var is the register which is being set, second var is the value (again using bridge)
+nop - does nothing, skips to next instruction
+jump - does add to the instruction pointer (var1 + var2 = 16 bit number which will be the modifier, var3 decides if it is set, or add)
+halt - stops the clock -> implies stopping the entire machine
+
+
+## external instructions - 100xx0xx
+- yet to be filled with cmds like display on screne etc...
+
+
+# Loading from RAM
+how it works -> the data will be loaded to bridgeA, from where the path is than interpreted based on to which register it wants to go to
+also bridgeB is used as the adress to RAM when loading from RAM
+also the takt clock is disconnected during the
+also when uploading to RAM, same trick is used: we upload and download this ok sign
+code 0 also just uses ALU out
+
+# Copying
+- the register are wired to the bridges in a 2 way method, where it can either copy itself to the bridge, or copy the bridge to it

@@ -1,0 +1,173 @@
+# Registers:
+- all registers are 8 bit, when we want to use 16 bit operations, we use regxhi names
+## user registers (user can use them):
+
+reg0 (user cannot write into it), when the user triggers an ALU operation, the result is written into this registers
+reg0hi
+reg1 - user can user them as he wants
+reg1Hi
+reg2 - also
+reg2Hi
+
+## system registers:
+
+### bridge registers
+- they are written as a bridge to every register, so we dont have to wire every register to every register, just to bridge, also only 8 bit register, like the user ones, are linked only to non hi versions of those register
+- also when something like movRegReg is issued, it works like transporting the rega to bridgeA, then to regb
+- bridge is also linked dirrectly into ALU, so an ALU operation is from bridge
+bridgeA
+bridgeAhi
+bridgeB
+bridgeBhi
+
+### operation registers
+
+opkode
+(vars = operands)
+- vars can be also at speciffic opkodes used as a clarification to the code (like the comparison, where var2 is divaded: 1 bit = >, 2 bit = <, 3 bit = =, this will also create naturally with combanitations things like this: >=, <=, ><, none, all)
+- var1 + var2, or var3 + var4 can be used as 16 bit numbers, or addresses, with var2 = Hi, var1 = nonHi; var3 = nonHi, var4 = Hi
+var1
+var2
+var3
+var4
+
+### AlU registers
+
+ALU out
+ALU out hi
+
+### RAM pointers
+
+instructionPointer - starting value is 1
+instructionPointerHi
+
+
+### flags
+comparison flag - normally low, when high, next instruction will fetch, then in decode, then turn off (7 instructions)
+carryAluIn - used in 2's compliment
+carryAluOut - utulized in 16 bit operation
+
+
+
+
+### big register flags
+- the big register is a lot of registers of type 574, written when the instruction is decoded
+- one flag drives a WHOLE register, not one bit at a time, doing it per bit would be wasteful
+- registers that have a Hi are moved as full 16 bit by ONE flag, the Hi half rides on bridgeAhi
+- the vars are the exception: var1 and var3 sit on bridgeA, var2 and var4 sit on bridgeAhi, and each has its own flag, because they are also used as the low and high half of a 16 bit number
+- total: 36 flags, so 5x 574 with 4 spare
+
+#### copy big reg flags
+- all copies to bridgeA
+reg0 -> bridgeA (16 bit)
+reg1 -> bridgeA (16 bit)
+reg2 -> bridgeA (16 bit)
+ALU out -> bridgeA (16 bit)
+var1 -> bridgeA
+var2 -> bridgeAhi
+var3 -> bridgeA
+var4 -> bridgeAhi
+instructionPointer -> bridgeA (16 bit)
+
+#### paste big reg flags
+- all pastes from bridgeA
+bridgeA -> reg0 (16 bit, microcode only, the user cannot reach this from an instruction)
+bridgeA -> reg1 (16 bit)
+bridgeA -> reg2 (16 bit)
+bridgeA -> opkode
+bridgeA -> var1
+bridgeA -> var2
+bridgeA -> var3
+bridgeA -> var4
+bridgeA -> bridgeB (16 bit)
+bridgeA -> instructionPointer (16 bit)
+
+#### ALU flags
+- 4 operations: add, and, or, not
+ALU write in add
+ALU write in AND
+ALU write in OR
+ALU write in NOT
+
+
+ALU Hi toggle
+- 0 = bridgeA and bridgeB go into the ADDER, the result is written to ALU out
+- 1 = bridgeAhi and bridgeBhi go into the adder, the result is written to ALU out hi
+- this is how a 16 bit operation is done on the 8 bit adder, two passes, the toggle picks the half
+- only for the adder the rest is natturally 16 bit
+
+block bridgeB from the adder
+- this is how increment is done: cut off the B input and turn on the first carry
+ALU out write enable
+- the adder is combinational and always counting, nothing happens until this is on
+
+#### carry flags
+carryIn set to 1
+carryIn <- carryOut
+- used between the two passes of a 16 bit operation
+carryOut clear
+carryOut write enable
+- the carry does not need a hold flag, because the two passes always follow each other with nothing in between
+
+#### comparison flags
+write comparison result into the comparison flag
+clear the comparison flag
+
+#### RAM flags
+RAM read (RAM -> bridgeA)
+RAM write (bridgeA -> RAM)
+- these two must never be on at the same time
+RAM Hi toggle
+- 0 = the RAM data pins are connected to bridgeA
+- 1 = the RAM data pins are connected to bridgeAhi
+- the RAM is 8 bit, so a 16 bit move is two accesses with an increment in between
+
+#### sequencing flags
+instructionPointer increment
+instruction reset
+- resets the second ring counter, clears the big register and flips the clock back to fetch
+halt
+- stops the clock, the whole machine stops
+
+
+# Comparator
+- a wired block hanging permanently on ALU out and ALU out hi, it is harmless because nothing is written unless the comparison flag write is on
+- it always produces three results:
+equal = NOR of all 16 bits (all zeros)
+smaller = carryAluOut is 0 after a subtraction (a borrow happened)
+bigger = NOT smaller AND NOT equal
+- bigger is derived, not separately wired, so it can never disagree with the other two
+- the three results are gated by the three enable bits in var2 and OR'd together, then inverted into the comparison flag:
+result = (bigger AND var2 bit0) OR (smaller AND var2 bit1) OR (equal AND var2 bit2)
+comparison flag = NOT result
+- because the enable bits are independent, all eight predicates come out of one instruction with no extra opkodes:
+1 = >
+2 = <
+4 = =
+3 = != (> or <)
+5 = >=
+6 = <=
+7 = always true
+0 = never true
+- comparison is done on the FULL result of a subtraction, not on two halves that would have to be merged, so a 16 bit comparison needs no extra held bits
+
+
+# Bus rules
+bridgeA is a BUS
+- pull-downs to ground, never holds a value across a takt
+- exactly ONE source flag may be on at a time, two sources means two drivers fighting and that kills a driver, not just the result
+- zero sources is legal and useful: the bus falls to 0, which is how bridgeB + 1 is done (0 + bridgeB + carry)
+bridgeB is a REGISTER
+- it holds the RAM address and the adder's B input while bridgeA is doing something else
+- this is what makes sub work: the negated number sits in bridgeB while ALU out is being overwritten by the addition
+
+
+# Timing
+- one takt = one ring counter stage
+- Q0: decode only, the big register is still all 0 from the last reset, so nothing executes
+- Q1..Qlast: the big register drives the taps while the decoder already prepares the next word
+- the big register is loaded on the rising edge, the same edge that advances the counter
+  at that moment the decoder still holds the previous word, so the right one gets caught
+- target registers write in the MIDDLE of the takt (write flags AND inverted clock), never on the loading edge
+- n micro steps cost n+1 takts
+- the last word carries the reset bit: it executes, then the counter and the big register are cleared and the clock goes back to fetch
