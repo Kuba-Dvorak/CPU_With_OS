@@ -1,0 +1,26 @@
+# CPU
+- 8 bit adder
+- 16 bit registers
+- 16 bit addressed SRAM
+- rest of the ALU (&, |, ~) is 16 bit
+- ALU output goes into the ALU out (reg)
+- ALU input goes from bridgeA (bus) (nonHi / Hi) and bridgeB (reg) (nonHi/ Hi), for 1 number operations (not, increment) goes only from bridgeA
+    - adder has a decide latch between nonHi / Hi
+    - decide latch works for input & output (one same latch)
+    - decide latch is only impotant for adding or 8 bit only operations, otherwise, it is useless
+    - adder also includes an ALU out carry (negatives from comparison or 16 bit operations) and ALU in carry (used in increment or 16 bit operations)
+    - user operations outputs are copied to the reg0
+- has a dedicated comparator which changes comparison flag
+    - the comparator is looking at ALU out (reg) 
+    - has 3 decide latches which are OR'd together in the output, can be combined together for other operations like: >=, <=, ><, ...
+        - <
+        - >
+        - =
+    - the comparison flag decides if to execute the next instruction
+- has a dedicated instruction pointer (16 bit reg) with it's own incrementer 
+- pulls from the SRAM from the adress in bridgeB or IP (instruction pointer)
+    - decided by a latch, witch destiguishes between fetch and decode + execute
+    - in fetch it takes the address of IP
+    - in user operations it takes from bridgeB
+    - the latch also decides if to keep reseting (not use) a one of 2 ring counters -> 1 is for fetch, 2 is for the decode + execute
+
