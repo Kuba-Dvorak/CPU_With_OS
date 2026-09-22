@@ -2,6 +2,7 @@
 - 8 bit adder
 - 16 bit registers
 - 16 bit addressed SRAM
+- wired interpeter
 - rest of the ALU (&, |, ~) is 16 bit
 - ALU output goes into the ALU out (reg)
 - ALU input goes from bridgeA (bus) (nonHi / Hi) and bridgeB (reg) (nonHi/ Hi), for 1 number operations (not, increment) goes only from bridgeA
@@ -24,3 +25,17 @@
     - in user operations it takes from bridgeB
     - the latch also decides if to keep reseting (not use) a one of 2 ring counters -> 1 is for fetch, 2 is for the decode + execute
 
+# Instructions
+- they are interpreted using a wired decider
+- the interpreter inputs are compare flag, 2 latches, mode latch, opkode, var1, var2, var3, var4 (on specific bits)
+- an instruction is interpreted into micro code, as described in a following 
+- the instructions are as followed:
+    - add16
+    - addReg
+    - and16
+    - andReg
+    - or16
+    - orReg
+    - not16
+    - notReg
+    
