@@ -13,14 +13,16 @@ struct storedUnit {
 };
 
 
+struct functionUnit {
+
+};
+
+
 struct customType {
     std::string name;
     int sizeB;
     std::vector<storedUnit> parameters;
-
-    int sizet() {
-        return parameters.size();
-    }
+    std::vector<functionUnit> metods;
 };
 
 
@@ -29,6 +31,16 @@ struct typesStorage {
 
     void createNewType(std::string name, int sizeB, std::vector<storedUnit> params) {
         types.push_back({name, sizeB, params});
+    }
+
+    customType* findType(std::string key) {
+        for (int i = 0; i < types.size(); i++) {
+            if (types[i].name == key) {
+                return &types[i];
+            }
+        }
+        std::cout << "Type doesn't exist: " << key << "\n" << std::endl;
+        return nullptr;
     }
 };
 
@@ -61,7 +73,13 @@ struct storage {
         lastPointerValue = 0;
     }
 
-    void addNewVariable(std::string name, std::string type) {
+    void addNewVariable(std::string name, std::string type, std::string deep) {
+
+    }
+
+    void returnVar(std::string key) {
 
     }
 };
+
+
