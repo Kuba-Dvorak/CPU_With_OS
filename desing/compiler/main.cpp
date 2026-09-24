@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,7 +15,39 @@ struct storedUnit {
 
 
 struct functionUnit {
+    std::string name;
+    std::vector<customType*> parameters;
+    std::vector<std::string> paramNames;
+    customType* returnVar;
+    int pointer0;
+    std::string functionCode;
+    int codeLocation;
+};
 
+
+void compile(functionUnit &unit) {
+
+}
+
+
+struct functionStorage {
+    std::vector<std::unique_ptr<functionUnit>> functions;
+
+    void createNewFunction(std::string name, std::vector<customType*> params, std::vector<std::string> names, customType* returnType, std::string uncompiledCode) {
+        functions.push_back(std::unique_ptr<functionUnit>(new functionUnit{name, params, names, returnType,
+            0, uncompiledCode, 0}));
+        compile(*functions.back());
+    }
+
+    functionUnit* findFunction(std::string key) {
+        for (int i = 0; i < functions.size(); i++) {
+            if (functions[i]->name == key) {
+                return functions[i].get();
+            }
+        }
+        std::cout << "Type doesn't exist: " << key << "\n" << std::endl;
+        return nullptr;
+    }
 };
 
 
@@ -27,16 +60,16 @@ struct customType {
 
 
 struct typesStorage {
-    std::vector<customType> types;
+    std::vector<std::unique_ptr<customType>> types;
 
     void createNewType(std::string name, int sizeB, std::vector<storedUnit> params) {
-        types.push_back({name, sizeB, params});
+        types.push_back(std::unique_ptr<customType>(new customType{name, sizeB, params}));
     }
 
     customType* findType(std::string key) {
-        for (int i = 0; i < types.size(); i++) {
-            if (types[i].name == key) {
-                return &types[i];
+        for (size_t i = 0; i < types.size(); i++) {
+            if (types[i]->name == key) {
+                return types[i].get();
             }
         }
         std::cout << "Type doesn't exist: " << key << "\n" << std::endl;
@@ -45,41 +78,31 @@ struct typesStorage {
 };
 
 
-enum class NodeTypes {
-    number = 0,
-    nameNode = 1,
-    binaryTree = 2,
-    basicType = 3,
-    ownType = 4,
-    ifStatement = 5,
-    elseStatement = 6,
-    whileCycle = 7,
-    forCycle = 8,
-    continueStatement = 9,
-    breakStatement = 10,
-    returnStatement = 11,
-
-    typeNode = 12,
-    structNode = 13,
-    functionNode = 14
-};
-
-
 struct storage {
-    std::vector<storedUnit> units;
-    int lastPointerValue;
+    std::vector<std::unique_ptr<storedUnit>> units;
+    int lastPointerValue = 0;
 
     storage() {
         lastPointerValue = 0;
     }
 
-    void addNewVariable(std::string name, std::string type, std::string deep) {
-
+    void addNewVariable(std::string name, std::string type, std::string deep, typesStorage &types) {
+        customType* itstype = types.findType(type);
+        if (itstype == nullptr) return;
+        units.push_back(std::unique_ptr<storedUnit>(new storedUnit{name + deep, lastPointerValue, itstype}));
+        lastPointerValue += itstype->sizeB;
     }
 
-    void returnVar(std::string key) {
-
+    storedUnit* returnVar(std::string key) {
+        for (size_t i = 0; i < units.size(); i++) {
+            if (units[i]->key == key) {
+                return units[i].get();
+            }
+        }
+        std::cout << "Variable doesn't exist: " << key << "\n" << std::endl;
+        return nullptr;
     }
+
 };
 
 

@@ -3,4 +3,5 @@ project(compiler)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(compiler main.cpp)
+add_executable(compiler main.cpp
+        textNodeCompiler.cpp)
