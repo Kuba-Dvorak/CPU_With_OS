@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
-
+#include <memory>
 
 
 enum class linePartName {
@@ -86,13 +86,22 @@ bool verifyName(const std::string &name) {
 
 
 struct NodeArrayNode {
+    int nodeType;
+    std::string stringValue = "";
+    int intValue = 0;
+
 
 };
 
 
 
 void compileRow(std::string &fileString, int &position) {
-
+    while (true) {
+        position += 1;
+        if (fileString[position] == specificNames.endOfLine) {
+            break;
+        }
+    }
 }
 
 
