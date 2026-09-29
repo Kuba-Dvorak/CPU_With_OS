@@ -95,6 +95,7 @@ struct nonAritmoNode {
     nonAritmoNodes type;
     int value;
     int numberSize;
+    int textPosition;
 
     std::string evaluate(int toWhichToSave) {
         if (type == nonAritmoNodes::numberType) {
@@ -210,6 +211,11 @@ int operatorPriority(operators op) {
 }
 
 
+operators intToOperator(int op) {
+
+}
+
+
 bool containsMath(char letter) {
     return operatorPriority(letter) > 0;
 }
@@ -227,6 +233,13 @@ struct aritmeticNode {
     aritmeticNode* parent = nullptr;
     int outputPointer = -1;
     int outputSize = -1;
+
+    aritmeticNode* getRoot() {
+        if (parent == nullptr) {
+            return this;
+        }
+        return parent->getRoot();
+    }
 
     std::string createBinary() {
         std::string returnee = myOwnsyntax.setReg + myOwnsyntax.reg4 + "0";
@@ -305,16 +318,16 @@ struct aritmeticNode {
         return returnee;
     }
 
-    //to which to save to urcuje kam se da vysledek daneho stromu v registrech v CPU => 1 = R1, 2 = R2, 3 = outputPointer (musi do RAM)
 
+    //to which to save to urcuje kam se da vysledek daneho stromu v registrech v CPU => 1 = R1, 2 = R2, 3 = outputPointer (musi do RAM)
     void saveToTree(operators newOperatorr, nonAritmoNode* itsAritmoNode, std::deque<aritmeticNode> &list, int lastOperatorTier, int secondLast, bool doSpecialThing = false) {
         int operatorThis = operatorPriority(nodeOperator);
         int operatorThat = operatorPriority(newOperatorr);
 
 
         if (doSpecialThing) {
-            list.push_back({newOperatorr, nodeIdCur++, rightAritmoNode, nullptr,
-                      nullptr, itsAritmoNode, this});
+            list.push_back({newOperatorr, nodeIdCur++, nullptr, rightAritmoNode,
+                      itsAritmoNode, nullptr, this});
             rightAritmoNode->parent = &(list.back());
             rightAritmoNode = &(list.back());
             return;
@@ -498,56 +511,60 @@ goodOperator loadOperator(std::string &fileString, int position) {
 }
 
 
-//zase pisu ja
-aritmeticNode loadOneNode(std::deque<aritmeticNode> &list) {
+struct variableInRam {
+    int pointer;
+    int sssize;
+};
 
+
+variableInRam askStorageForVariable(std::string name) {
+    return {};
 }
 
 
-aritmeticNode operateNotatation(std::string &oneString, int &posStart) {
-    int lastNodeLevel = 0;
-    operators lastOperator = operators::voidOperator;
-    aritmeticNode resultNode;
-    while (true) {
-        posStart += 1;
-        aritmeticNode leftPosibleNode = {operators::voidOperator};
-        aritmeticNode rightPosibleNode = {operators::voidOperator};
-        nonAritmoNode leftNPNode = {nonAritmoNodes::voidType};
-        nonAritmoNode rightNPNode = {nonAritmoNodes::voidType};
-        if (posStart >= oneString.length()) {
-            std::cout << "Closing bracket not found" << std::endl;
-            break;
+//zase pisu ja
+//1. nacist operatora
+//2. nacist operand
+
+int loadOneNode(std::deque<aritmeticNode> &list, std::deque<nonAritmoNode> &listOfNons, std::string &quickCompile, std::string &text, int weakestOperator, int &position) {
+    goodOperator op = loadOperator(text, position);
+    if (op.operatorr == 0) {
+        //konec vyrazu
+        return 0;
+    }
+    position = op.endingPos;
+    goodInt number = loadNextNum(text, position);
+    if (!number.isIt) {
+        goodString name = loadNextName(text, position);
+        if (!name.isIt) {
+            std::cout << "You messed up big time, no thing after a operator" << std::endl;
+            return -1;
         }
-
-        char currentChar = oneString[posStart];
-        if (currentChar == myMathSyntax.bracketEnd) {
-            break;
+        variableInRam var = askStorageForVariable(name.value);
+        listOfNons.push_back({nonAritmoNodes::variableType, var.pointer, var.sssize, name.endingPos});
+        position = name.endingPos;
+    }
+    else {
+        if (!number.isIt) {
+            std::cout << "You messed up big time, no thing after a operator" << std::endl;
         }
+        listOfNons.push_back({nonAritmoNodes::variableType, number.value, sizeof(number.value), number.endingPos});
+        position = number.endingPos;
+    }
 
-        if (currentChar == myMathSyntax.bracketStart) {
-            leftPosibleNode = operateNotatation(oneString, posStart);
-        }
-
-        else {
-            goodString name = loadNextName(oneString, posStart);
-            if (!(name.isIt)) {
-                goodInt resultNumber = loadNextNum(oneString, posStart);
-                if (resultNumber.isIt) {
-
-                }
-            }
-
-            else {
-
-            }
-
-            posStart = name.endingPos;
-        }
+    if (weakestOperator > op.operatorr) {
+        quickCompile += list.back().getRoot()->createBinary();
 
     }
-    return resultNode;
+
+    list.back().saveToTree(intToOperator(op.operatorr), &listOfNons.back(), list, 0, 0, false);
+    return 1;
 }
 
+
+aritmeticNode operateBT(std::string &oneLineString) {
+
+}
 
 
 
