@@ -86,11 +86,6 @@ int requestFreeSubPointer(int allocSize) {
 }
 
 
-void requestFreeingSize(int pointer, int freeingSize) {
-
-}
-
-
 struct nonAritmoNode {
     nonAritmoNodes type;
     int value;
@@ -130,11 +125,6 @@ struct nonAritmoNode {
 
             if (toWhichToSave == 2) {
                 return myOwnsyntax.movRamReg + std::to_string(value) + myOwnsyntax.reg2;
-            }
-
-            if (toWhichToSave < 0) {
-                requestFreeingSize(toWhichToSave * -1, numberSize);
-                return "";
             }
         }
 
@@ -246,7 +236,12 @@ struct aritmeticNode {
         if (leftNonANode == nullptr || rightNonANode == nullptr) {
             //nemuzeme udelat zanoreni protoze nejsou jenom cisla
             if (leftNonANode == nullptr && (rightNonANode != nullptr)) {
-                std::string returnee = leftAritmoNode->createBinary() + rightNonANode->evaluate(requestFreeSubPointer(rightNonANode->numberSize) * -1);
+                int pointRight = 0;
+                if (rightNonANode->type != nonAritmoNodes::variableType) {
+                    pointRight = requestFreeSubPointer(rightNonANode->numberSize) * -1;
+                }
+
+                std::string returnee = leftAritmoNode->createBinary() + rightNonANode->evaluate(pointRight);
 
                 if (nodeOperator == operators::plus) {
                     outputSize = std::max(leftAritmoNode->outputSize, rightNonANode->numberSize) + 1;
@@ -260,7 +255,11 @@ struct aritmeticNode {
             }
 
             if (leftNonANode != nullptr && (rightNonANode == nullptr)) {
-                std::string returnee = leftNonANode->evaluate(requestFreeSubPointer(leftNonANode->numberSize) * -1) + rightAritmoNode->createBinary();
+                int pointLeft = 0;
+                if (leftNonANode->type != nonAritmoNodes::variableType) {
+                    pointLeft = requestFreeSubPointer(leftNonANode->numberSize) * -1;
+                }
+                std::string returnee = leftNonANode->evaluate(pointLeft) + rightAritmoNode->createBinary();
 
                 if (nodeOperator == operators::plus) {
                     outputSize = std::max(leftNonANode->numberSize, rightAritmoNode->outputSize) + 1;
@@ -287,10 +286,20 @@ struct aritmeticNode {
         }
 
         //nemuzeme udelat zanoreni s vystupem do registru, protoze nikdy si nemuzeme byt jisti co ta funkce dela, taky kdyz je cislo > 1 bajt tak musime pracovat sloziteji
-        if (leftNonANode->type == nonAritmoNodes::functionType || rightNonANode->type == nonAritmoNodes::functionType || leftNonANode->numberSize > 1 || rightNonANode->numberSize > 1) {
+        if (leftNonANode->type == nonAritmoNodes::functionType || rightNonANode->type == nonAritmoNodes::functionType
+            || leftNonANode->numberSize > 1 || rightNonANode->numberSize > 1) {
 
-            std::string returnee = leftNonANode->evaluate(requestFreeSubPointer(leftNonANode->numberSize) * -1) +
-                                   rightNonANode->evaluate(requestFreeSubPointer(rightNonANode->numberSize) * -1);
+            int pointRight = 0;
+            int pointLeft = 0;
+            if (leftNonANode->type != nonAritmoNodes::variableType) {
+                pointLeft = requestFreeSubPointer(leftNonANode->numberSize) * -1;
+            }
+
+            if (rightNonANode->type != nonAritmoNodes::variableType) {
+                pointRight = requestFreeSubPointer(rightNonANode->numberSize) * -1;
+            }
+
+            std::string returnee = leftNonANode->evaluate(pointLeft) + rightNonANode->evaluate(pointRight);
 
             if (nodeOperator == operators::plus) {
                 outputSize = std::max(leftNonANode->numberSize, rightNonANode->numberSize) + 1;
@@ -551,12 +560,18 @@ variableInRam askStorageForVariable(std::string name) {
 }
 
 
+void removeCacheApartFrom(variableInRam &returnVal) {
+
+}
+
+
 //1. nacist operatora
 //2. nacist operand
 
-aritmeticNode operateBT(std::string &oneLineString, int &positionInText);
+variableInRam operateBT(std::string &oneLineString, int &positionInText, std::string &compiledText);
 
-int loadOneNode(std::deque<aritmeticNode> &list, std::deque<nonAritmoNode> &listOfNons, std::string &quickCompile, std::string &text, int weakestOperator, int &position) {
+
+int loadOneNode(std::deque<aritmeticNode> &list, std::deque<nonAritmoNode> &listOfNons, std::string &quickCompile, std::string &text, int &weakestOperator, int &position) {
     goodOperator op = loadOperator(text, position);
     if (op.operatorr == 0) {
         //implikuje konec stromu
@@ -569,10 +584,9 @@ int loadOneNode(std::deque<aritmeticNode> &list, std::deque<nonAritmoNode> &list
         if (!name.isIt) {
             goodBracket bracket = nextBracketStartPosition(text, position);
             if (bracket.isIt) {
-                list.push_back(operateBT(text, position));
+                variableInRam quickVar = operateBT(text, position, quickCompile);
                 position++;
-                quickCompile += list.back().getRoot()->createBinary();
-                listOfNons.push_back({nonAritmoNodes::variableType, list.back().outputPointer, list.back().outputSize, position});
+                listOfNons.push_back({nonAritmoNodes::variableType, quickVar.pointer, quickVar.sssize, position});
             }
 
             else {
@@ -593,20 +607,85 @@ int loadOneNode(std::deque<aritmeticNode> &list, std::deque<nonAritmoNode> &list
         position = number.endingPos;
     }
 
-    if (weakestOperator < op.operatorr) {
+    if (intToOperator(weakestOperator) < intToOperator(op.operatorr)) {
         quickCompile += list.back().getRoot()->createBinary();
         listOfNons.push_back({nonAritmoNodes::variableType, list.back().outputPointer, list.back().outputSize, position});
         list.push_back({intToOperator(op.operatorr), nodeIdCur++, nullptr, nullptr,
             &listOfNons.back(), &listOfNons[listOfNons.size() - 2], nullptr});
+        //tady predelat na jakoby aby to bylo pasnuti velikosti, ne ID
+        weakestOperator = op.operatorr;
     }
 
-    list.back().saveToTree(intToOperator(op.operatorr), &listOfNons.back(), list, 0, 0, false);
+    else {
+        list.back().saveToTree(intToOperator(op.operatorr), &listOfNons.back(), list, 0, 0, false);
+    }
     return 1;
 }
 
 
-aritmeticNode operateBT(std::string &oneLineString, int &positionInText) {
+//1. nacist prvni cislo / variable / funkci / zavorka - pokud je tady tak pouze preskocime za ni
+//2. nacist 1. operator (pokud je)
 
+variableInRam operateBT(std::string &oneLineString, int &positionInText, std::string &compiledText) {
+    std::deque<aritmeticNode> listOfArs;
+    std::deque<nonAritmoNode> listOfNons;
+    goodInt number = loadNextNum(oneLineString, positionInText);
+
+    if (!number.isIt) {
+        goodString name = loadNextName(oneLineString, positionInText);
+        if (!name.isIt) {
+            goodBracket bracket = nextBracketStartPosition(oneLineString, positionInText);
+            positionInText = bracket.endingPos;
+            positionInText++;
+            if (bracket.isIt) {
+                return operateBT(oneLineString, positionInText, compiledText);
+            }
+
+            else {
+                std::cout << "You not making it bro..." << std::endl;
+            }
+        }
+
+        else {
+            variableInRam var = askStorageForVariable(name.value);
+            listOfNons.push_back({nonAritmoNodes::variableType, var.pointer, var.sssize, name.endingPos});
+            positionInText = name.endingPos;
+        }
+    }
+
+    else {
+        listOfNons.push_back({nonAritmoNodes::numberType, number.value, sizeof(number.value), number.endingPos});
+        positionInText = number.endingPos;
+    }
+
+    goodOperator op = loadOperator(oneLineString, positionInText);
+
+    if (op.operatorr == 0) {
+        int pointer = requestFreeSubPointer(listOfNons.back().numberSize);
+        listOfNons.back().evaluate(-pointer);
+        if (listOfNons.back().type == nonAritmoNodes::numberType) {
+            return {pointer, listOfNons.back().numberSize};
+        }
+
+        return {listOfNons.back().value, listOfNons.back().numberSize};
+    }
+
+    int weakestThing = op.operatorr;
+
+    while (true) {
+        int reason = loadOneNode(listOfArs, listOfNons, compiledText, oneLineString, weakestThing, positionInText);
+
+        if (reason == 0) {
+            break;
+        }
+        if (reason < 0) {
+            std::cout << "something went wrong here" << std::endl;
+            return {-1, -1};
+        }
+    }
+    aritmeticNode* arNode = listOfArs.back().getRoot();
+    compiledText += arNode->createBinary();
+    return {arNode->outputPointer, arNode->outputSize};
 }
 
 
