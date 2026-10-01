@@ -176,7 +176,7 @@ void addingOperation(std::string &text, int currentPlusPointer, int leftNodeSize
 }
 
 
-int operatorPriority(char letter) {
+int operatorLettersPriority(char letter) {
     if (letter == myMathSyntax.notGate) return 1;
     if (letter == myMathSyntax.multiply) return 2;
     if (letter == myMathSyntax.plus || letter == myMathSyntax.minus) return 3;
@@ -188,7 +188,7 @@ int operatorPriority(char letter) {
 }
 
 
-int operatorPriority(operators op) {
+int operatorEnumPriority(operators op) {
     if (op == operators::notOperator) return 1;
     if (op == operators::multiply || op == operators::divade) return 2;
     if (op == operators::plus || op == operators::remove) return 3;
@@ -201,16 +201,18 @@ int operatorPriority(operators op) {
 }
 
 
+// tuhle funkci taky delala AI
 operators intToOperator(int op) {
-
+    if (op < 1 || op > 14) return operators::voidOperator;
+    return static_cast<operators>(op);
 }
 
 
 bool containsMath(char letter) {
-    return operatorPriority(letter) > 0;
+    return operatorLettersPriority(letter) > 0;
 }
 
-int nodeIdCur = 0;
+int nodeIdCur = 2;
 
 
 struct aritmeticNode {
@@ -330,8 +332,8 @@ struct aritmeticNode {
 
     //to which to save to urcuje kam se da vysledek daneho stromu v registrech v CPU => 1 = R1, 2 = R2, 3 = outputPointer (musi do RAM)
     void saveToTree(operators newOperatorr, nonAritmoNode* itsAritmoNode, std::deque<aritmeticNode> &list, int lastOperatorTier, int secondLast, bool doSpecialThing = false) {
-        int operatorThis = operatorPriority(nodeOperator);
-        int operatorThat = operatorPriority(newOperatorr);
+        int operatorThis = operatorEnumPriority(nodeOperator);
+        int operatorThat = operatorEnumPriority(newOperatorr);
 
 
         if (doSpecialThing) {
@@ -445,7 +447,7 @@ goodInt loadNextNum(std::string &fileString, int position) {
     int value = 0;
 
     while (true) {
-        if (position < (int)fileString.size()) {
+        if (position >= (int)fileString.size()) {
             return {0, position, false};
         }
         char c = fileString[position];
@@ -470,7 +472,7 @@ goodString loadNextName(std::string &fileString, int position) {
     std::string name;
 
     while (true) {
-        if (position < (int)fileString.size()) {
+        if (position >= (int)fileString.size()) {
             return {"", position, false};
         }
         char c = fileString[position];
@@ -543,7 +545,7 @@ goodBracket nextBracketEndPosition(std::string &fileString, int position) {
         }
         char c = fileString[position++];
         if (c == ')') {
-            return {position, true};
+            return {position + 1, true};
         }
     }
 }
@@ -612,7 +614,6 @@ int loadOneNode(std::deque<aritmeticNode> &list, std::deque<nonAritmoNode> &list
         listOfNons.push_back({nonAritmoNodes::variableType, list.back().outputPointer, list.back().outputSize, position});
         list.push_back({intToOperator(op.operatorr), nodeIdCur++, nullptr, nullptr,
             &listOfNons.back(), &listOfNons[listOfNons.size() - 2], nullptr});
-        //tady predelat na jakoby aby to bylo pasnuti velikosti, ne ID
         weakestOperator = op.operatorr;
     }
 
@@ -630,15 +631,26 @@ variableInRam operateBT(std::string &oneLineString, int &positionInText, std::st
     std::deque<aritmeticNode> listOfArs;
     std::deque<nonAritmoNode> listOfNons;
     goodInt number = loadNextNum(oneLineString, positionInText);
+    variableInRam var2;
+    bool wasBracket = false;
 
     if (!number.isIt) {
         goodString name = loadNextName(oneLineString, positionInText);
         if (!name.isIt) {
             goodBracket bracket = nextBracketStartPosition(oneLineString, positionInText);
-            positionInText = bracket.endingPos;
-            positionInText++;
             if (bracket.isIt) {
-                return operateBT(oneLineString, positionInText, compiledText);
+                positionInText = bracket.endingPos;
+                positionInText++;
+                var2 = operateBT(oneLineString, positionInText, compiledText);
+                wasBracket = true;
+                listOfNons.push_back({nonAritmoNodes::variableType, var2.pointer, var2.sssize, bracket.endingPos});
+                goodBracket bracketEnd = nextBracketEndPosition(oneLineString, positionInText);
+                if (bracketEnd.isIt) {
+                    positionInText = bracketEnd.endingPos;
+                }
+                else {
+                    std::cout << "Missing end bracket )" << std::endl;
+                }
             }
 
             else {
@@ -661,6 +673,9 @@ variableInRam operateBT(std::string &oneLineString, int &positionInText, std::st
     goodOperator op = loadOperator(oneLineString, positionInText);
 
     if (op.operatorr == 0) {
+        if (wasBracket) {
+            return var2;
+        }
         int pointer = requestFreeSubPointer(listOfNons.back().numberSize);
         listOfNons.back().evaluate(-pointer);
         if (listOfNons.back().type == nonAritmoNodes::numberType) {
@@ -671,6 +686,40 @@ variableInRam operateBT(std::string &oneLineString, int &positionInText, std::st
     }
 
     int weakestThing = op.operatorr;
+
+    //creating firstNode
+    positionInText = op.endingPos;
+
+    number = loadNextNum(oneLineString, positionInText);
+    if (!number.isIt) {
+        goodString name = loadNextName(oneLineString, positionInText);
+        if (!name.isIt) {
+            goodBracket bracket = nextBracketStartPosition(oneLineString, positionInText);
+            if (bracket.isIt) {
+                positionInText = bracket.endingPos;
+                var2 = operateBT(oneLineString, positionInText, compiledText);
+                wasBracket = true;
+                listOfNons.push_back({nonAritmoNodes::variableType, var2.pointer, var2.sssize, bracket.endingPos});
+            }
+
+            else {
+                std::cout << "You not making it bro..." << std::endl;
+            }
+        }
+
+        else {
+            variableInRam var = askStorageForVariable(name.value);
+            listOfNons.push_back({nonAritmoNodes::variableType, var.pointer, var.sssize, name.endingPos});
+            positionInText = name.endingPos;
+        }
+    }
+
+    else {
+        listOfNons.push_back({nonAritmoNodes::numberType, number.value, sizeof(number.value), number.endingPos});
+        positionInText = number.endingPos;
+    }
+
+    listOfArs.push_back({intToOperator(op.operatorr), nodeIdCur++, nullptr, nullptr, &listOfNons[0], &listOfNons[1], nullptr});
 
     while (true) {
         int reason = loadOneNode(listOfArs, listOfNons, compiledText, oneLineString, weakestThing, positionInText);
