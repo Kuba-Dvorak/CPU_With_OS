@@ -7,4 +7,5 @@ add_executable(compiler main.cpp
         textNodeCompiler.cpp
         binaryTree.cpp
         binaryTree.cpp
-        newTryWhole.cpp)
+        newTryWhole.cpp
+        syntax.cpp)

@@ -79,11 +79,11 @@ struct typesStorage {
 };
 
 
-struct storage {
+struct variableStorage {
     std::vector<std::unique_ptr<storedUnit>> units;
     int lastPointerValue = 0;
 
-    storage() {
+    variableStorage() {
         lastPointerValue = 0;
     }
 
