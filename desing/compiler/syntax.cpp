@@ -8,11 +8,15 @@ struct basicSyntax {
     std::string reg0 = " R0 ";
     std::string reg3 = " R3 ";
     std::string reg4 = " R4 ";
+    std::string reg5 = " R5 "; // dalsi odkladaci registr
+    std::string addr0 = " Ram0 "; // ber jako adresu do RAM reg1
+    std::string addr1 = " Ram1 "; // ber jako adresu do RAM reg2
+    // RAM adresa 0 = vzit z registru 1
     std::string addReg = " add8 ";// add8 works like this: var1 = reg code, var2 = adding number, if the reg code is 5, similary for var3 and var4
     std::string addRam = " addRam ";
+    std::string incrementReg = " increment ";
     std::string movRegRam = " movRegRam ";
     std::string movRamRam = " movRamRam ";
-    std::string movRamRamByReg = " movRamRamByReg ";
     std::string movRegReg = " movRegReg ";
     std::string setRam16 = " setRam16 ";
     std::string setRam8 = " setRam8 ";

@@ -25,7 +25,7 @@ struct fullCompiledCode {
 struct numberVar {
     int pointer;
     int sizeB;
-    bool reference;
+    bool isRef;
 };
 
 
@@ -34,39 +34,88 @@ struct typee {
     std::vector<typee*> params;
     std::vector<std::string> paramKeys;
     int size;
+    std::vector<bool> isRef;
 
-    typee* findParamOnKey(std::string &key, int &pointerLocal) {
+    typee* findParamOnKey(std::string &key, int &diff, bool &wasITRef) {
         for (int i = 0; i < params.size(); i++) {
             if (paramKeys[i] == key) {
+                wasITRef = isRef[i];
                 return params[i];
             }
-            pointerLocal += params[i]->size;
+            diff += params[i]->size;
         }
         //non existent parameter
         return nullptr;
     }
 
-    numberVar paramPointer(int pointer0, std::vector<std::string> &keysAfter) {
-        if (name == numType) {
-            return {pointer0, size, false};
+    //pokud z toho vyjde wasReferenced jako true, tak nam tahle funkce garantuje ze pointer na to misto je v Reg1!!!
+    numberVar paramPointer(int pointer0, bool &wasReferenced, bool aboutThis, fullCompiledCode &compilingCode, std::vector<std::string> &keysAfter) {
+        if (wasReferenced) {
+            //kdyz jsme ukoncili radu, tak musime tohle vratit
+            if (keysAfter.size() <= 0) {
+                return {0, size, aboutThis};
+            }
+
+            //kdyz je to cislo tak musime vratit to cislo o velikosti cislo, protoze cislo pak pod sebou nema dalsi
+            if (name == numType) {
+                return {0, size, aboutThis};
+            }
+
+            int toAdd = 0;
+            bool someRandom = false;
+            typee* lookedFor = findParamOnKey(keysAfter[0], toAdd, someRandom);
+            keysAfter.erase(keysAfter.begin());
+
+            if (toAdd != 0) {
+                compilingCode.addInstruction(asmSyntax.setReg + asmSyntax.reg2 + " " + std::to_string(toAdd));
+                compilingCode.addInstruction(asmSyntax.addReg + asmSyntax.reg1 + asmSyntax.reg2);
+            }
+
+            compilingCode.addInstruction(asmSyntax.movRegReg + asmSyntax.reg0 + asmSyntax.reg1);
+
+            if (someRandom) {
+                compilingCode.addInstruction(asmSyntax.movRamReg + asmSyntax.addr0 + asmSyntax.reg1);
+            }
+
+            return lookedFor->paramPointer(0, wasReferenced, someRandom, compilingCode, keysAfter);
         }
 
-        if (keysAfter.size() > 0) {
-            typee* nextType = findParamOnKey(keysAfter[0], pointer0);
-            if (nextType == nullptr) {
-                return {-1, -1, false};
+        else {
+            //kdyz jsme ukoncili radu, tak musime tohle vratit
+            if (keysAfter.size() <= 0) {
+                return {pointer0, size, aboutThis};
             }
+
+            //kdyz je to cislo tak musime vratit to cislo o velikosti cislo, protoze cislo pak pod sebou nema dalsi
+            if (name == numType) {
+                return {pointer0, size, aboutThis};
+            }
+
+            int toAdd = 0;
+            bool someRandom = false;
+            typee* lookedFor = findParamOnKey(keysAfter[0], toAdd, someRandom);
             keysAfter.erase(keysAfter.begin());
-            return nextType->paramPointer(pointer0, keysAfter);
+            wasReferenced = someRandom;
+
+            if (someRandom) {
+                compilingCode.addInstruction(asmSyntax.movRamReg + " " + std::to_string((toAdd + pointer0)) + asmSyntax.reg1);
+                return lookedFor->paramPointer(0, wasReferenced, someRandom, compilingCode, keysAfter);
+            }
+            return lookedFor->paramPointer(toAdd + pointer0, wasReferenced, someRandom, compilingCode, keysAfter);
         }
-        return {pointer0, size, false};
+
     }
 
     void calculateSize(int potSize = -1) {
         if (name == numType) {
             size = potSize;
         }
+
         for (int i = 0; i < params.size(); i++) {
+            if (isRef[i]) {
+                size += 2;
+                continue;
+            }
             size += params[i]->size;
         }
     }
@@ -76,8 +125,8 @@ struct typee {
 struct typesHandle {
     std::deque<typee> typeList;
 
-    void createNewType(std::string name, std::vector<typee*> &params, std::vector<std::string> &paramKeys) {
-        typeList.push_back({name, params, paramKeys, 0});
+    void createNewType(std::string name, std::vector<typee*> &params, std::vector<std::string> &paramKeys, std::vector<bool> &refers) {
+        typeList.push_back({name, params, paramKeys, 0, refers});
         typeList.back().calculateSize();
     }
 
@@ -94,7 +143,7 @@ struct typesHandle {
 
 
 void copyVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom) {
-    for (int i = 0; i < std::min(varTo.sizeB, varFrom.sizeB); i++) {
+    for (int i = 0; i < varTo.sizeB; i++) {
         compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(varFrom.pointer + i) + " " + std::to_string(varTo.pointer + i));
     }
 }
@@ -104,69 +153,76 @@ struct variable {
     int pointer0;
     std::string name;
     typee* typee;
-    std::vector<variable> inVars;
-    variable* reference = nullptr;
-
-    variable* findOnKey(std::string &key) {
-        for (int i = 0; i < inVars.size(); i++) {
-            if (inVars[i].name == key) {
-                return &inVars[i];
-            }
-        }
-    }
+    bool isRef = false;
 
     void set(variable &var, fullCompiledCode &compilingCode, std::vector<std::string> &keyedList) {
-        variable* finder = this;
-        for (int i = 0; i < keyedList.size(); i++) {
-            if (finder->reference != nullptr) {
-                finder = reference->findOnKey(keyedList[i]);
-                continue;
-            }
-            finder = finder->findOnKey(keyedList[i]);
-        }
-
-        if (finder->reference != nullptr) {
-            if (var.reference != nullptr) {
-                var.reference = finder->reference;
+        //keyed list je pro NAS!!!, u varu verime ze je spravneho typu
+        if (keyedList.size() == 0) {
+            if (isRef) {
+                if (var.isRef) {
+                    copyVar(compilingCode, {pointer0, 2}, {var.pointer0, 2});
+                    return;
+                }
+                compilingCode.addInstruction(asmSyntax.setRam16 + " " + std::to_string(pointer0) + " " + std::to_string(var.pointer0));
                 return;
             }
-            finder = reference;
+            copyVar(compilingCode, {pointer0, typee->size}, {var.pointer0, var.typee->size});
+            return;
         }
 
-        for (int i = 0; i < std::min(var.typee->size, finder->typee->size); i++) {
-            compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(finder->pointer0 + i) + " " + std::to_string(var.pointer0 + i));
+        bool willBeRef = isRef;
+        numberVar result = typee->paramPointer(pointer0, willBeRef, false, compilingCode, keyedList);
+
+        //result v R1
+        if (willBeRef) {
+            //tamto je reference
+            if (var.isRef) {
+                //zkopirujeme jenom tu referenci, ten pointer
+                if (result.isRef) {
+                    compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + std::to_string(var.pointer0));
+                    return;
+                }
+
+                compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg2 + std::to_string(var.pointer0));
+
+                for (int i = 0; i < result.sizeB; i++) {
+                    compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + asmSyntax.addr1);
+                    compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
+                    compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg2);
+                }
+                return;
+            }
+
+            //tamto neni reference
+            if (result.isRef) {
+                compilingCode.addInstruction(asmSyntax.setRam16 + asmSyntax.addr0 + std::to_string(var.pointer0));
+                return;
+            }
+
+            //jinak kopirujeme
+            for (int i = 0; i < result.sizeB; i++) {
+                compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + std::to_string(var.pointer0));
+                compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
+            }
+            return;
         }
 
+        //pouze kopirujeme, neboli to nase neni reference
+        if (var.isRef) {
+            compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg1 + std::to_string(var.pointer0));
+            for (int i = 0; i < result.sizeB; i++) {
+                compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(result.pointer) + asmSyntax.addr0);
+                compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
+            }
+            return;
+        }
+
+        //pouze kopirovani
+        copyVar(compilingCode, {result.pointer, result.sizeB}, {var.pointer0, var.typee->size});
     }
 
     void call(std::vector<std::string> &keyedList, fullCompiledCode &compilingCode, numberVar &varThere) {
-        if (varThere.reference && reference) {
-            if (varThere.sizeB != 2) {
-                std::cout << "The var there is not a correct pointer" << "\n" << std::endl;
-                return;
-            }
-            std::cout << "Reference on a reference generated" << "\n" << std::endl;
-            copyVar(compilingCode, varThere, {pointer0, 2, true});
-            return;
-        }
 
-        numberVar var2 = typee->paramPointer(pointer0, keyedList);
-
-        if (varThere.reference) {
-            if (varThere.sizeB != 2) {
-                std::cout << "The var there is not a correct pointer" << "\n" << std::endl;
-                return;
-            }
-            compilingCode.addInstruction(asmSyntax.setRam16 + " " + std::to_string(var2.pointer) + " " + std::to_string(var2.pointer));
-            return;
-        }
-
-        if (varThere.sizeB != var2.sizeB) {
-            std::cout << "The vars dont have same sizes, not calling" << "\n" << std::endl;
-            return;
-        }
-
-        copyVar(compilingCode, varThere, var2);
     }
 };
 
@@ -230,7 +286,7 @@ struct cacheSegment {
     numberVar requestFreeSub(int itsSize) {
         if (current + itsSize > end) {
             std::cout << "Ran out of one line stack" << std::endl;
-            return {-1, -1, false};
+            return {-1, -1};
         }
         current += itsSize;
         return {current - itsSize, itsSize};
