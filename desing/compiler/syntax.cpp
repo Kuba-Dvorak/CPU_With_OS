@@ -2,6 +2,10 @@
 
 //mov, set je 1. vec: kam, 2. vec: odkud
 struct basicSyntax {
+    //sys calls
+
+
+    //cpu ops
     std::string setReg = " setReg ";
     std::string movRamReg = " movRamReg ";
     std::string reg1 = " R1 ";

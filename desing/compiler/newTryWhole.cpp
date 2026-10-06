@@ -9,21 +9,38 @@
 #include "./syntax.cpp"
 
 #define numType "number"
+#define voidType "void"
+#define STATIC_RAM "static"
+#define DYNAMIC_RAM "dynamic"
 
 
 struct fullCompiledCode {
-    std::string code = "";
+    std::vector<std::string> code = {};
     int currentLine = 0;
 
     void addInstruction(std::string instrText) {
-        code += instrText;
+        code.push_back(instrText);
         currentLine += 1;
+    }
+
+    void changeBackFunq(std::string instrText, int index) {
+        code[index] = instrText;
+    }
+};
+
+
+struct staticDynamicPointr {
+    std::string ramStart;
+    int pointer = -1;
+
+    std::string getString() {
+        return (" " + ramStart + " " + std::to_string(pointer));
     }
 };
 
 
 struct numberVar {
-    int pointer;
+    staticDynamicPointr pointer;
     int sizeB;
     bool isRef;
 };
@@ -54,16 +71,19 @@ struct typee {
     }
 
     //pokud z toho vyjde wasReferenced jako true, tak nam tahle funkce garantuje ze pointer na to misto je v Reg1!!!
-    numberVar paramPointer(int pointer0, bool &wasReferenced, bool aboutThis, fullCompiledCode &compilingCode, std::vector<std::string> &keysAfter) {
+    numberVar paramPointer(int pointer0, std::string const &ramStartPlace, bool &wasReferenced, bool aboutThis, fullCompiledCode &compilingCode, std::vector<std::string> &keysAfter) {
+        if (name == voidType) {
+            return {{ramStartPlace, -1}, -1, false};
+        }
         if (wasReferenced) {
             //kdyz jsme ukoncili radu, tak musime tohle vratit
             if (keysAfter.size() <= 0) {
-                return {0, size, aboutThis};
+                return {{ramStartPlace, 0}, size, aboutThis};
             }
 
             //kdyz je to cislo tak musime vratit to cislo o velikosti cislo, protoze cislo pak pod sebou nema dalsi
             if (name == numType) {
-                return {0, size, aboutThis};
+                return {{ramStartPlace, 0}, size, aboutThis};
             }
 
             int toAdd = 0;
@@ -82,18 +102,18 @@ struct typee {
                 compilingCode.addInstruction(asmSyntax.movRamReg + asmSyntax.reg1 + asmSyntax.addr0);
             }
 
-            return lookedFor->paramPointer(0, wasReferenced, someRandom, compilingCode, keysAfter);
+            return lookedFor->paramPointer(0, ramStartPlace, wasReferenced, someRandom, compilingCode, keysAfter);
         }
 
         else {
             //kdyz jsme ukoncili radu, tak musime tohle vratit
             if (keysAfter.size() <= 0) {
-                return {pointer0, size, aboutThis};
+                return {{ramStartPlace, pointer0}, size, aboutThis};
             }
 
             //kdyz je to cislo tak musime vratit to cislo o velikosti cislo, protoze cislo pak pod sebou nema dalsi
             if (name == numType) {
-                return {pointer0, size, aboutThis};
+                return {{ramStartPlace, pointer0}, size, aboutThis};
             }
 
             int toAdd = 0;
@@ -104,9 +124,9 @@ struct typee {
 
             if (someRandom) {
                 compilingCode.addInstruction(asmSyntax.movRamReg + " " + asmSyntax.reg1 + std::to_string((toAdd + pointer0)));
-                return lookedFor->paramPointer(0, wasReferenced, someRandom, compilingCode, keysAfter);
+                return lookedFor->paramPointer(0, ramStartPlace, wasReferenced, someRandom, compilingCode, keysAfter);
             }
-            return lookedFor->paramPointer(toAdd + pointer0, wasReferenced, someRandom, compilingCode, keysAfter);
+            return lookedFor->paramPointer(toAdd + pointer0, ramStartPlace, wasReferenced, someRandom, compilingCode, keysAfter);
         }
 
     }
@@ -149,7 +169,7 @@ struct typesHandle {
 
 void copyVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom) {
     for (int i = 0; i < varTo.sizeB; i++) {
-        compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(varTo.pointer + i) + std::to_string(varFrom.pointer + i));
+        compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(varTo.pointer.pointer + i) + std::to_string(varFrom.pointer.pointer + i));
     }
 }
 
@@ -157,24 +177,28 @@ void copyVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom
 //do silne definovaneho varTo se kopiruje to co je v varFrom
 //isInReg1 mluvi o varTo
 void copy(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom, bool isInReg1) {
+    if (varTo.pointer.pointer == -1 || varFrom.pointer.pointer == -1) {
+        //pointery nejsou definovane => nullptr nebo void
+        return;
+    }
     //pointer na to moje je ted v registru 1
     if (isInReg1) {
         //to moje je pointer (neboli ta vec co je na adrese (ktera je ulozena v reg1) je pointer)
         if (varTo.isRef) {
             //tamto je taky reference (misto kam ukazuje varFrom.pointer je nejake misto v pameti a jeho obsah je pointer na promenou)
             if (varFrom.isRef) {
-                compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + std::to_string(varFrom.pointer));
+                compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + varFrom.pointer.getString());
                 return;
             }
 
             //kdyz je to moje reference ale to co mam zkopirovat tak neni, tak ulozim na sebe jeho pointer
-            compilingCode.addInstruction(asmSyntax.setRam16 + asmSyntax.addr0 + std::to_string(varFrom.pointer));
+            compilingCode.addInstruction(asmSyntax.setRam16 + asmSyntax.addr0 + varFrom.pointer.getString());
             return;
         }
 
         //jeho je reference, ale moje ne => musim zkopirovat to na co ukazuje ta jeho reference
         if (varFrom.isRef) {
-            compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg2 + std::to_string(varFrom.pointer));
+            compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg2 + varFrom.pointer.getString());
 
             for (int i = 0; i < varTo.sizeB; i++) {
                 compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + asmSyntax.addr1);
@@ -187,8 +211,8 @@ void copy(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom, b
 
         //to moje neni reference a to jeho taky neni reference => musime cele kopirovat
         for (int i = 0; i < varTo.sizeB; i++) {
-            compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + " " + std::to_string(varFrom.pointer));
-            varFrom.pointer += 1;
+            compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + " " + varFrom.pointer.getString());
+            varFrom.pointer.pointer += 1;
             compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
         }
 
@@ -201,23 +225,23 @@ void copy(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom, b
     if (varTo.isRef) {
         //tamto je taky reference (misto kam ukazuje varFrom.pointer je nejake misto v pameti a jeho obsah je pointer na promenou)
         if (varFrom.isRef) {
-            compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + std::to_string(varFrom.pointer));
+            compilingCode.addInstruction(asmSyntax.movRamRam + varTo.pointer.getString() + varFrom.pointer.getString());
             return;
         }
 
         //kdyz je to moje reference ale to co mam zkopirovat tak neni, tak ulozim na sebe jeho pointer
-        compilingCode.addInstruction(asmSyntax.setRam16 + std::to_string(varTo.pointer) + std::to_string(varFrom.pointer));
+        compilingCode.addInstruction(asmSyntax.setRam16 + varTo.pointer.getString() + varFrom.pointer.getString());
         return;
     }
 
     //jeho je reference, ale moje ne => musim zkopirovat to na co ukazuje ta jeho reference
     if (varFrom.isRef) {
-        compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg2 + std::to_string(varFrom.pointer));
+        compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg2 + varFrom.pointer.getString());
 
         for (int i = 0; i < varTo.sizeB; i++) {
-            compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + asmSyntax.addr1);
+            compilingCode.addInstruction(asmSyntax.movRamRam + varTo.pointer.getString() + asmSyntax.addr1);
             compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg2);
-            varTo.pointer += 1;
+            varTo.pointer.pointer += 1;
         }
 
         return;
@@ -225,9 +249,9 @@ void copy(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom, b
 
     //to moje neni reference a to jeho taky neni reference => musime cele kopirovat
     for (int i = 0; i < varTo.sizeB; i++) {
-        compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + std::to_string(varFrom.pointer));
-        varFrom.pointer += 1;
-        varTo.pointer += 1;
+        compilingCode.addInstruction(asmSyntax.movRamRam + varTo.pointer.getString() + " " + varFrom.pointer.getString());
+        varFrom.pointer.pointer += 1;
+        varTo.pointer.pointer += 1;
     }
 }
 
@@ -235,13 +259,17 @@ void copy(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom, b
 //z silne definovaneho varFrom se kopiruje do varTo
 //isInReg1 rika neco o varFrom
 void callVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom, bool isInReg1) {
+    if (varTo.pointer.pointer == -1 || varFrom.pointer.pointer == -1) {
+        //pointery nejsou definovane => nullptr nebo void
+        return;
+    }
     //pointer na to moje je ted v registru 1
     if (isInReg1) {
         //to moje je pointer (neboli ta vec co je na adrese (ktera je ulozena v reg1) je pointer)
         if (varFrom.isRef) {
             //tamto je taky reference (misto kam ukazuje varFrom.pointer je nejake misto v pameti a jeho obsah je pointer na promenou)
             if (varTo.isRef) {
-                compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(varTo.pointer) + asmSyntax.addr0);
+                compilingCode.addInstruction(asmSyntax.movRamRam + " " + varTo.pointer.getString() + asmSyntax.addr0);
                 return;
             }
 
@@ -250,9 +278,9 @@ void callVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom
             compilingCode.addInstruction(asmSyntax.movRamReg + asmSyntax.reg2 + asmSyntax.addr0);
 
             for (int i = 0; i < varTo.sizeB; i++) {
-                compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + asmSyntax.addr1);
+                compilingCode.addInstruction(asmSyntax.movRamRam + varTo.pointer.getString() + " " + asmSyntax.addr1);
                 compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg2);
-                varTo.pointer += 1;
+                varTo.pointer.pointer += 1;
             }
 
             return;
@@ -260,14 +288,14 @@ void callVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom
 
         //kdyz to do ceho se mam kopirovat je reference, tak tam proste hodim do nej sebe
         if (varTo.isRef) {
-            compilingCode.addInstruction(asmSyntax.movRegRam + std::to_string(varTo.pointer) + " " + asmSyntax.addr0);
+            compilingCode.addInstruction(asmSyntax.movRegRam + varTo.pointer.getString() + " " + asmSyntax.addr0);
             return;
         }
 
         //to moje neni reference a to jeho taky neni reference => musime cele kopirovat
         for (int i = 0; i < varTo.sizeB; i++) {
-            compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + asmSyntax.addr0);
-            varTo.pointer += 1;
+            compilingCode.addInstruction(asmSyntax.movRamRam + varTo.pointer.getString() + " " + asmSyntax.addr0);
+            varTo.pointer.pointer += 1;
             compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
         }
 
@@ -279,18 +307,18 @@ void callVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom
     if (varFrom.isRef) {
         //tamto je taky reference (misto kam ukazuje varFrom.pointer je nejake misto v pameti a jeho obsah je pointer na promenou)
         if (varTo.isRef) {
-            compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + std::to_string(varFrom.pointer));
+            compilingCode.addInstruction(asmSyntax.movRamRam + varTo.pointer.getString() + " " + varFrom.pointer.getString());
             return;
         }
 
         //kdyz je to moje reference ale to co mam zkopirovat tak neni, tak musim projit od sebe na skutecnou vec a zkopirovat tamto na tamto misto
 
-        compilingCode.addInstruction(asmSyntax.movRamReg + asmSyntax.reg2 + std::to_string(varTo.pointer));
+        compilingCode.addInstruction(asmSyntax.movRamReg + asmSyntax.reg2 + varTo.pointer.getString());
 
         for (int i = 0; i < varTo.sizeB; i++) {
-            compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(varTo.pointer) + " " + asmSyntax.addr1);
+            compilingCode.addInstruction(asmSyntax.movRamRam + " " + varTo.pointer.getString() + " " + asmSyntax.addr1);
             compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg2);
-            varTo.pointer += 1;
+            varTo.pointer.pointer += 1;
         }
 
         return;
@@ -298,15 +326,15 @@ void callVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom
 
     //kdyz to do ceho se mam kopirovat je reference, tak tam proste hodim do nej sebe
     if (varTo.isRef) {
-        compilingCode.addInstruction(asmSyntax.movRegRam + std::to_string(varTo.pointer) + " " + std::to_string(varFrom.pointer));
+        compilingCode.addInstruction(asmSyntax.movRegRam + varTo.pointer.getString() + " " + varFrom.pointer.getString());
         return;
     }
 
     //to moje neni reference a to jeho taky neni reference => musime cele kopirovat
     for (int i = 0; i < varTo.sizeB; i++) {
-        compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + std::to_string(varFrom.pointer));
-        varTo.pointer += 1;
-        varFrom.pointer += 1;
+        compilingCode.addInstruction(asmSyntax.movRamRam + varTo.pointer.getString() + " " + varFrom.pointer.getString());
+        varTo.pointer.pointer += 1;
+        varFrom.pointer.pointer += 1;
     }
 
     return;
@@ -323,19 +351,27 @@ struct variable {
     int pointer0;
     std::string name;
     typee* typee;
+    std::string ramPart;
     bool isRef = false;
+
+    int getSize() {
+        if (isRef) {
+            return 2;
+        }
+        return typee->size;
+    }
 
     //var urcuje misto odkud musime kopirovat
     //verime programatorovi ze var je vytvoren z promene jejiz typ = nasemu po keyed list
     void set(numberVar var, fullCompiledCode &compilingCode, std::vector<std::string> &keyedList) {
         //keyed list je pro NAS!!!, u varu verime ze je spravneho typu
         if (keyedList.size() == 0) {
-            copy(compilingCode, {pointer0, typee->size, isRef}, var, false);
+            copy(compilingCode, {{ramPart, pointer0}, getSize(), isRef}, var, false);
             return;
         }
 
         bool willBeRef = isRef;
-        numberVar result = typee->paramPointer(pointer0, willBeRef, false, compilingCode, keyedList);
+        numberVar result = typee->paramPointer(pointer0, ramPart, willBeRef, false, compilingCode, keyedList);
 
         copy(compilingCode, result, var, willBeRef);
     }
@@ -344,12 +380,12 @@ struct variable {
     //keyed list je pro nas, a zase verime ze var je to ten stejny typ jako ten z keyed list nasi promenne
     void call(numberVar var, fullCompiledCode &compilingCode, std::vector<std::string> &keyedList) {
         if (keyedList.size() == 0) {
-            callVar(compilingCode, var, {pointer0, typee->size, isRef}, false);
+            callVar(compilingCode, var, {{ramPart, pointer0}, getSize(), isRef}, false);
             return;
         }
 
         bool willBeRef = isRef;
-        numberVar result = typee->paramPointer(pointer0, willBeRef, false, compilingCode, keyedList);
+        numberVar result = typee->paramPointer(pointer0, ramPart, willBeRef, false, compilingCode, keyedList);
 
         callVar(compilingCode, var, result, willBeRef);
     }
@@ -359,8 +395,8 @@ struct variable {
 struct varHandle {
     std::deque<variable> varList;
 
-    void addNewVariable(std::string &name, typee* typee, int pointer, bool isRef) {
-        varList.push_back({pointer, name, typee});
+    void addNewVariable(std::string &name, std::string const &ramPart, typee* typee, int pointer, bool isRef) {
+        varList.push_back({pointer, name, typee, ramPart, isRef});
     }
 
     variable* returnVar(std::string &name) {
@@ -404,10 +440,12 @@ struct timeLineManager {
 struct cacheSegment {
     int start;
     int end;
+    std::string ramPart;
     int current;
 
-    cacheSegment(int pointer0, int fullSize) {
+    cacheSegment(int pointer0, int fullSize, std::string ramPart) {
         start = pointer0;
+        this->ramPart = ramPart;
         end = pointer0 + fullSize;
         current = start;
     }
@@ -415,10 +453,10 @@ struct cacheSegment {
     numberVar requestFreeSub(int itsSize) {
         if (current + itsSize > end) {
             std::cout << "Ran out of one line stack" << std::endl;
-            return {-1, -1};
+            return {{ramPart, -1}, -1};
         }
         current += itsSize;
-        return {current - itsSize, itsSize};
+        return {{ramPart, current - itsSize}, itsSize};
     }
 
     void resetCache() {
@@ -443,58 +481,96 @@ struct codeSegmentRam {
 };
 
 
-struct functionSegment {
-    cacheSegment myCacheSeg;
-    codeSegmentRam myCodeSeg;
+struct bigSegment {
+    cacheSegment myCacheSeg = cacheSegment(0, 0, "");
+    std::vector<codeSegmentRam> myCodeSeg = {};
+    bool isFunq = false;
+    int deepness;
+    int maxLenght;
+
+    bigSegment(int sizeOfCache, bool isFunq, int pointer0, std::string ramSection) {
+        this->isFunq = isFunq;
+        deepness = 0;
+        myCacheSeg = cacheSegment(pointer0, sizeOfCache, ramSection);
+        myCodeSeg.push_back({pointer0 + sizeOfCache});
+        deepness += 1;
+        maxLenght = myCacheSeg.start;
+    }
+
+    void newScope() {
+        myCodeSeg.push_back({myCodeSeg.back().end});
+        deepness += 1;
+    }
+
+    bool endScope() {
+        if (myCodeSeg.back().end >= maxLenght) {
+            maxLenght = myCodeSeg.back().end;
+        }
+        myCodeSeg.pop_back();
+        deepness -= 1;
+        if (deepness <= 0) {
+            return true;
+        }
+        return false;
+    }
 };
 
 
 struct basicFunction {
     std::string name;
-    functionSegment* myRamSeg;
+    bigSegment* myRamSeg;
     std::vector<variable> inputsInner;
     variable output;
-    int jumpBackToOrigin;
+    //jump to function start se pouzije na skoceni na radky, kde je kod funkce
     int jumpToFunction;
+    numberVar jumpBackToOrigin;
+    std::vector<std::string> emptyKeyList = {};
 
-    bool getCalled(fullCompiledCode &compilingCode, std::vector<numberVar> &inputsOuter) {
+    bool getCalled(fullCompiledCode &compilingCode, std::vector<numberVar> &inputsOuter, numberVar whereTo) {
         if (inputsOuter.size() != inputsInner.size()) {
             std::cout << "Function hasn't got the correct amount of parameters" << std::endl;
             return false;
         }
 
-        for (int i = 0; i < inputsInner.size(); i++) {
-            if (inputsInner[i].reference) {
-                compilingCode.addInstruction(asmSyntax.setRam16 + " " + std::to_string(inputsInner[i].pointer0) + " " + std::to_string(inputsOuter[i].pointer));
-                continue;
-            }
 
-            copyVar(compilingCode, {inputsInner[i].pointer0, inputsInner[i].typee->size}, inputsOuter[i]);
+        for (int i = 0; i < inputsInner.size(); i++) {
+            inputsInner[i].set(inputsOuter[i], compilingCode, emptyKeyList);
         }
 
-        compilingCode.addInstruction(asmSyntax.setRam16 + " " + std::to_string(jumpBackToOrigin) + " " + std::to_string(compilingCode.currentLine + 2));
+        compilingCode.addInstruction(asmSyntax.setRam16 + " " + jumpBackToOrigin.pointer.getString() + " " + std::to_string(compilingCode.currentLine + 2));
         compilingCode.addInstruction(asmSyntax.jumpDictate + " " + std::to_string(jumpToFunction));
+        output.call(whereTo, compilingCode, emptyKeyList);
         return true;
     }
 
-    void define(std::string name, std::vector<bool> &isReferences, std::vector<std::string> varNames, std::vector<typee*> varTypes, typee* outputType,
-        int outputPointer, varHandle &varsHandle, timeLineManager &timeLine, functionSegment* hisPart) {
+    bool define(std::string name, std::vector<bool> &isReferences, std::vector<std::string> &varNames, std::vector<typee*> &varTypes,
+        varHandle &varsHandle, timeLineManager &timeLine, bigSegment* functions_Segment, typee* outPutType, int codeStartLine) {
         if (varNames.size() != varTypes.size()) {
             std::cout << "Function hasn't got the same amount of names and types" << std::endl;
-            return;
+            return false;
         }
 
         this->name = name;
+        myRamSeg = functions_Segment;
+        jumpToFunction = codeStartLine;
+        jumpBackToOrigin = {{STATIC_RAM, myRamSeg->myCodeSeg.back().end}, 2, false};
+        myRamSeg->myCodeSeg.back().expand(2);
 
-        output = variable(outputPointer++, name, outputType, false);
+        output = variable(myRamSeg->myCodeSeg.back().end, name, outPutType, STATIC_RAM, false);
+        myRamSeg->myCodeSeg.back().expand(outPutType->size);
 
         for (size_t i = 0; i < varNames.size(); i++) {
             timeLine.addVar(varNames[i]);
-            varsHandle.addNewVariable(varNames[i], varTypes[i], outputPointer++, isReferences[i]);
+            varsHandle.addNewVariable(varNames[i], STATIC_RAM, varTypes[i], myRamSeg->myCodeSeg.back().end, isReferences[i]);
             inputsInner.push_back(varsHandle.varList[varsHandle.varList.size() - 1]);
+            if (isReferences[i]) {
+                myRamSeg->myCodeSeg.back().expand(2);
+                continue;
+            }
+            myRamSeg->myCodeSeg.back().expand(varTypes[i]->size);
         }
 
-        myRamSeg = hisPart;
+        return true;
     }
 };
 
@@ -511,44 +587,62 @@ struct functionHandle {
         std::cout << "Function doesn't exist: " << name << "\n" << std::endl;
         return nullptr;
     }
+
+    void createFunction(std::string name, std::vector<bool> &isReferences, std::vector<std::string> varNames, std::vector<typee*> varTypes,
+        varHandle &varsHandle, timeLineManager &timeLine, typee* outPutType, bigSegment* functions_Segment, fullCompiledCode &code) {
+        functionList.push_back({});
+        //tento jump preskoci funkci pri normalnim hiearchickem zpracovani, aby se mohla psat rovnou do kodu, a stacilo na ni skocit
+        //nasledne se instrukce po dokompilovani funkce zmeni na spravny jumpPointer, probehne to nejak takhle:
+        //code.changeBackFunq(asmSyntax.jumpDictate + " " + std::to_string(code.currentLine), functionList.back().jumpToFunction - 1);
+        code.addInstruction(asmSyntax.jumpDictate + " -1");
+        functionList.back().define(name, isReferences, varNames, varTypes, varsHandle, timeLine, functions_Segment, outPutType, code.currentLine);
+    }
 };
 
 
 struct memoryManager {
+    fullCompiledCode asmCode;
     functionHandle functionsHandle;
     varHandle varsHandle;
     typesHandle typesHandle;
-    cacheSegment cacheCurrent;
-    std::vector<codeSegmentRam> normalSegments; // dynamicke
-    std::vector<functionSegment> staticSegments;
+    bigSegment normalSegments = bigSegment(0, false, 0, ""); // dynamicke
+    std::deque<bigSegment> staticSegments = {};
     std::vector<timeLineManager> timelinesList;
-    bool lastWasFunction = false;
+    bigSegment* currentSegment;
 
-    void createSubCode(bool isFunction, int wantedLenghtFunq = 50) {
-        lastWasFunction = isFunction;
-        if (lastWasFunction) {
-            //nejdriv cache o nejake definovane velikosti, potom codeSegment, ktery muze rust za doby existence funkce
-            staticSegments.push_back({cacheSegment(staticSegments.back().myCodeSeg.end, wantedLenghtFunq),
-                codeSegmentRam(staticSegments.back().myCodeSeg.end + wantedLenghtFunq)});
+    void constructThing(int cacheSize = 100) {
+        normalSegments = bigSegment(cacheSize, false, 0, DYNAMIC_RAM);
+        currentSegment = &normalSegments;
+    }
+
+    void newFunq(int cacheSize = 60) {
+        if (currentSegment->isFunq) {
+            std::cout << "Cannot create a function inside a function" << std::endl;
+            return;
         }
-        else {
-            normalSegments.push_back({normalSegments.back().end});
-        }
+        staticSegments.push_back(bigSegment(cacheSize, true, staticSegments.back().maxLenght, STATIC_RAM));
+        currentSegment = &staticSegments.back();
         timelinesList.push_back({});
     }
 
-    void destroyCurrentTimeLine() {
-        timelinesList.back().destroyLocals(varsHandle);
-        if (!lastWasFunction) {
-            normalSegments.pop_back();
-        }
-        else {
-            lastWasFunction = false;
-        }
-        timelinesList.pop_back();
+    void newScope() {
+        timelinesList.push_back({});
+        currentSegment->newScope();
     }
 
 
+    void endCurScope() {
+        timelinesList.back().destroyLocals(varsHandle);
+        timelinesList.pop_back();
+        if (currentSegment->endScope()) {
+            if (currentSegment->isFunq) {
+                currentSegment = &normalSegments;
+                return;
+            }
+            std::cout << "End of program, ending" << std::endl;
+            //dodelat konceni!!!
+        }
+    }
 
 };
 
