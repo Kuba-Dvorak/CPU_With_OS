@@ -1,5 +1,6 @@
 #include <string>
 
+//mov, set je 1. vec: kam, 2. vec: odkud
 struct basicSyntax {
     std::string setReg = " setReg ";
     std::string movRamReg = " movRamReg ";

@@ -29,6 +29,7 @@ struct numberVar {
 };
 
 
+//TODO: dost pravdepodobne ze typee, a dalsi tyhle funkce maji otocene CIL, ZDROJ v asm delani kodu
 struct typee {
     std::string name;
     std::vector<typee*> params;
@@ -41,6 +42,10 @@ struct typee {
             if (paramKeys[i] == key) {
                 wasITRef = isRef[i];
                 return params[i];
+            }
+            if (isRef[i]) {
+                diff += 2;
+                continue;
             }
             diff += params[i]->size;
         }
@@ -68,13 +73,13 @@ struct typee {
 
             if (toAdd != 0) {
                 compilingCode.addInstruction(asmSyntax.setReg + asmSyntax.reg2 + " " + std::to_string(toAdd));
-                compilingCode.addInstruction(asmSyntax.addReg + asmSyntax.reg1 + asmSyntax.reg2);
+                compilingCode.addInstruction(asmSyntax.addReg + asmSyntax.reg2 + asmSyntax.reg1);
             }
 
-            compilingCode.addInstruction(asmSyntax.movRegReg + asmSyntax.reg0 + asmSyntax.reg1);
+            compilingCode.addInstruction(asmSyntax.movRegReg + asmSyntax.reg1 + asmSyntax.reg0);
 
             if (someRandom) {
-                compilingCode.addInstruction(asmSyntax.movRamReg + asmSyntax.addr0 + asmSyntax.reg1);
+                compilingCode.addInstruction(asmSyntax.movRamReg + asmSyntax.reg1 + asmSyntax.addr0);
             }
 
             return lookedFor->paramPointer(0, wasReferenced, someRandom, compilingCode, keysAfter);
@@ -98,7 +103,7 @@ struct typee {
             wasReferenced = someRandom;
 
             if (someRandom) {
-                compilingCode.addInstruction(asmSyntax.movRamReg + " " + std::to_string((toAdd + pointer0)) + asmSyntax.reg1);
+                compilingCode.addInstruction(asmSyntax.movRamReg + " " + asmSyntax.reg1 + std::to_string((toAdd + pointer0)));
                 return lookedFor->paramPointer(0, wasReferenced, someRandom, compilingCode, keysAfter);
             }
             return lookedFor->paramPointer(toAdd + pointer0, wasReferenced, someRandom, compilingCode, keysAfter);
@@ -144,85 +149,209 @@ struct typesHandle {
 
 void copyVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom) {
     for (int i = 0; i < varTo.sizeB; i++) {
-        compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(varFrom.pointer + i) + " " + std::to_string(varTo.pointer + i));
+        compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(varTo.pointer + i) + std::to_string(varFrom.pointer + i));
     }
 }
 
 
+//do silne definovaneho varTo se kopiruje to co je v varFrom
+//isInReg1 mluvi o varTo
+void copy(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom, bool isInReg1) {
+    //pointer na to moje je ted v registru 1
+    if (isInReg1) {
+        //to moje je pointer (neboli ta vec co je na adrese (ktera je ulozena v reg1) je pointer)
+        if (varTo.isRef) {
+            //tamto je taky reference (misto kam ukazuje varFrom.pointer je nejake misto v pameti a jeho obsah je pointer na promenou)
+            if (varFrom.isRef) {
+                compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + std::to_string(varFrom.pointer));
+                return;
+            }
+
+            //kdyz je to moje reference ale to co mam zkopirovat tak neni, tak ulozim na sebe jeho pointer
+            compilingCode.addInstruction(asmSyntax.setRam16 + asmSyntax.addr0 + std::to_string(varFrom.pointer));
+            return;
+        }
+
+        //jeho je reference, ale moje ne => musim zkopirovat to na co ukazuje ta jeho reference
+        if (varFrom.isRef) {
+            compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg2 + std::to_string(varFrom.pointer));
+
+            for (int i = 0; i < varTo.sizeB; i++) {
+                compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + asmSyntax.addr1);
+                compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
+                compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg2);
+            }
+
+            return;
+        }
+
+        //to moje neni reference a to jeho taky neni reference => musime cele kopirovat
+        for (int i = 0; i < varTo.sizeB; i++) {
+            compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + " " + std::to_string(varFrom.pointer));
+            varFrom.pointer += 1;
+            compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
+        }
+
+        return;
+    }
+
+    //jinak neni pointer na ukazatel na varTo ulozen v reg1, podobne pripady
+
+    //to moje je pointer, takze co je v varTo.pointer je pointer na vec v pameti coz je pointer
+    if (varTo.isRef) {
+        //tamto je taky reference (misto kam ukazuje varFrom.pointer je nejake misto v pameti a jeho obsah je pointer na promenou)
+        if (varFrom.isRef) {
+            compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + std::to_string(varFrom.pointer));
+            return;
+        }
+
+        //kdyz je to moje reference ale to co mam zkopirovat tak neni, tak ulozim na sebe jeho pointer
+        compilingCode.addInstruction(asmSyntax.setRam16 + std::to_string(varTo.pointer) + std::to_string(varFrom.pointer));
+        return;
+    }
+
+    //jeho je reference, ale moje ne => musim zkopirovat to na co ukazuje ta jeho reference
+    if (varFrom.isRef) {
+        compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg2 + std::to_string(varFrom.pointer));
+
+        for (int i = 0; i < varTo.sizeB; i++) {
+            compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + asmSyntax.addr1);
+            compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg2);
+            varTo.pointer += 1;
+        }
+
+        return;
+    }
+
+    //to moje neni reference a to jeho taky neni reference => musime cele kopirovat
+    for (int i = 0; i < varTo.sizeB; i++) {
+        compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + std::to_string(varFrom.pointer));
+        varFrom.pointer += 1;
+        varTo.pointer += 1;
+    }
+}
+
+
+//z silne definovaneho varFrom se kopiruje do varTo
+//isInReg1 rika neco o varFrom
+void callVar(fullCompiledCode &compilingCode, numberVar varTo, numberVar varFrom, bool isInReg1) {
+    //pointer na to moje je ted v registru 1
+    if (isInReg1) {
+        //to moje je pointer (neboli ta vec co je na adrese (ktera je ulozena v reg1) je pointer)
+        if (varFrom.isRef) {
+            //tamto je taky reference (misto kam ukazuje varFrom.pointer je nejake misto v pameti a jeho obsah je pointer na promenou)
+            if (varTo.isRef) {
+                compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(varTo.pointer) + asmSyntax.addr0);
+                return;
+            }
+
+            //kdyz je to moje reference ale to co mam zkopirovat tak neni, tak musim projit od sebe na skutecnou vec a zkopirovat tamto na tamto misto
+
+            compilingCode.addInstruction(asmSyntax.movRamReg + asmSyntax.reg2 + asmSyntax.addr0);
+
+            for (int i = 0; i < varTo.sizeB; i++) {
+                compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + asmSyntax.addr1);
+                compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg2);
+                varTo.pointer += 1;
+            }
+
+            return;
+        }
+
+        //kdyz to do ceho se mam kopirovat je reference, tak tam proste hodim do nej sebe
+        if (varTo.isRef) {
+            compilingCode.addInstruction(asmSyntax.movRegRam + std::to_string(varTo.pointer) + " " + asmSyntax.addr0);
+            return;
+        }
+
+        //to moje neni reference a to jeho taky neni reference => musime cele kopirovat
+        for (int i = 0; i < varTo.sizeB; i++) {
+            compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + asmSyntax.addr0);
+            varTo.pointer += 1;
+            compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
+        }
+
+        return;
+    }
+
+    //jinak neni pointer na ukazatel na varTo ulozen v reg1, podobne pripady
+
+    if (varFrom.isRef) {
+        //tamto je taky reference (misto kam ukazuje varFrom.pointer je nejake misto v pameti a jeho obsah je pointer na promenou)
+        if (varTo.isRef) {
+            compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + std::to_string(varFrom.pointer));
+            return;
+        }
+
+        //kdyz je to moje reference ale to co mam zkopirovat tak neni, tak musim projit od sebe na skutecnou vec a zkopirovat tamto na tamto misto
+
+        compilingCode.addInstruction(asmSyntax.movRamReg + asmSyntax.reg2 + std::to_string(varTo.pointer));
+
+        for (int i = 0; i < varTo.sizeB; i++) {
+            compilingCode.addInstruction(asmSyntax.movRamRam + " " + std::to_string(varTo.pointer) + " " + asmSyntax.addr1);
+            compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg2);
+            varTo.pointer += 1;
+        }
+
+        return;
+    }
+
+    //kdyz to do ceho se mam kopirovat je reference, tak tam proste hodim do nej sebe
+    if (varTo.isRef) {
+        compilingCode.addInstruction(asmSyntax.movRegRam + std::to_string(varTo.pointer) + " " + std::to_string(varFrom.pointer));
+        return;
+    }
+
+    //to moje neni reference a to jeho taky neni reference => musime cele kopirovat
+    for (int i = 0; i < varTo.sizeB; i++) {
+        compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(varTo.pointer) + " " + std::to_string(varFrom.pointer));
+        varTo.pointer += 1;
+        varFrom.pointer += 1;
+    }
+
+    return;
+}
+
+
+//set funkce = nastav to moje podle var
+//call funkce = nastav var podle toho meho
+//resulty kopirovani:
+//  - promena + promena = kopirovani
+//  - reference + promena = kopirovani z reference
+//  - reference + reference = kopirovani pointeru
 struct variable {
     int pointer0;
     std::string name;
     typee* typee;
     bool isRef = false;
 
-    void set(variable &var, fullCompiledCode &compilingCode, std::vector<std::string> &keyedList) {
+    //var urcuje misto odkud musime kopirovat
+    //verime programatorovi ze var je vytvoren z promene jejiz typ = nasemu po keyed list
+    void set(numberVar var, fullCompiledCode &compilingCode, std::vector<std::string> &keyedList) {
         //keyed list je pro NAS!!!, u varu verime ze je spravneho typu
         if (keyedList.size() == 0) {
-            if (isRef) {
-                if (var.isRef) {
-                    copyVar(compilingCode, {pointer0, 2}, {var.pointer0, 2});
-                    return;
-                }
-                compilingCode.addInstruction(asmSyntax.setRam16 + " " + std::to_string(pointer0) + " " + std::to_string(var.pointer0));
-                return;
-            }
-            copyVar(compilingCode, {pointer0, typee->size}, {var.pointer0, var.typee->size});
+            copy(compilingCode, {pointer0, typee->size, isRef}, var, false);
             return;
         }
 
         bool willBeRef = isRef;
         numberVar result = typee->paramPointer(pointer0, willBeRef, false, compilingCode, keyedList);
 
-        //result v R1
-        if (willBeRef) {
-            //tamto je reference
-            if (var.isRef) {
-                //zkopirujeme jenom tu referenci, ten pointer
-                if (result.isRef) {
-                    compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + std::to_string(var.pointer0));
-                    return;
-                }
-
-                compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg2 + std::to_string(var.pointer0));
-
-                for (int i = 0; i < result.sizeB; i++) {
-                    compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + asmSyntax.addr1);
-                    compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
-                    compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg2);
-                }
-                return;
-            }
-
-            //tamto neni reference
-            if (result.isRef) {
-                compilingCode.addInstruction(asmSyntax.setRam16 + asmSyntax.addr0 + std::to_string(var.pointer0));
-                return;
-            }
-
-            //jinak kopirujeme
-            for (int i = 0; i < result.sizeB; i++) {
-                compilingCode.addInstruction(asmSyntax.movRamRam + asmSyntax.addr0 + std::to_string(var.pointer0));
-                compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
-            }
-            return;
-        }
-
-        //pouze kopirujeme, neboli to nase neni reference
-        if (var.isRef) {
-            compilingCode.addInstruction(asmSyntax.movRegRam + asmSyntax.reg1 + std::to_string(var.pointer0));
-            for (int i = 0; i < result.sizeB; i++) {
-                compilingCode.addInstruction(asmSyntax.movRamRam + std::to_string(result.pointer) + asmSyntax.addr0);
-                compilingCode.addInstruction(asmSyntax.incrementReg + asmSyntax.reg1);
-            }
-            return;
-        }
-
-        //pouze kopirovani
-        copyVar(compilingCode, {result.pointer, result.sizeB}, {var.pointer0, var.typee->size});
+        copy(compilingCode, result, var, willBeRef);
     }
 
-    void call(std::vector<std::string> &keyedList, fullCompiledCode &compilingCode, numberVar &varThere) {
+    //var urcuje misto kam musime kopirovat
+    //keyed list je pro nas, a zase verime ze var je to ten stejny typ jako ten z keyed list nasi promenne
+    void call(numberVar var, fullCompiledCode &compilingCode, std::vector<std::string> &keyedList) {
+        if (keyedList.size() == 0) {
+            callVar(compilingCode, var, {pointer0, typee->size, isRef}, false);
+            return;
+        }
 
+        bool willBeRef = isRef;
+        numberVar result = typee->paramPointer(pointer0, willBeRef, false, compilingCode, keyedList);
+
+        callVar(compilingCode, var, result, willBeRef);
     }
 };
 
