@@ -2,10 +2,8 @@
 
 //mov, set je 1. vec: kam, 2. vec: odkud
 struct basicSyntax {
-    //sys calls
-
-
-    //cpu ops
+    std::string mov = " mov "; //mov je zaroven movRegRam a movRamReg a movRegReg a movRamRam, potom to asembler prelozi podle toho jestli to je cislo => adresa
+    // a pokud to je treba R1 => registr, poradi: odkud, kam
     std::string setReg = " setReg ";
     std::string movRamReg = " movRamReg ";
     std::string reg1 = " R1 ";
@@ -14,8 +12,8 @@ struct basicSyntax {
     std::string reg3 = " R3 ";
     std::string reg4 = " R4 ";
     std::string reg5 = " R5 "; // dalsi odkladaci registr
-    std::string addr0 = " Ram0 "; // ber jako adresu do RAM reg1
-    std::string addr1 = " Ram1 "; // ber jako adresu do RAM reg2
+    std::string addr1 = " Ram1 "; // ber jako adresu do RAM reg1
+    std::string addr2 = " Ram2 "; // ber jako adresu do RAM reg2
     // RAM adresa 0 = vzit z registru 1
     std::string addReg = " add8 ";// add8 works like this: var1 = reg code, var2 = adding number, if the reg code is 5, similary for var3 and var4
     std::string addRam = " addRam ";
@@ -33,3 +31,5 @@ struct basicSyntax {
 };
 
 basicSyntax asmSyntax;
+std::string constexpr staticRamSeg = "static";
+std::string constexpr dynamicRamSeg = "dynamic";

@@ -8,4 +8,6 @@ add_executable(compiler main.cpp
         binaryTree.cpp
         binaryTree.cpp
         newTryWhole.cpp
-        syntax.cpp)
+        syntax.cpp
+        memoryManagment/memoryOperations.cpp
+        memoryManagment/codeGenerator.cpp)
