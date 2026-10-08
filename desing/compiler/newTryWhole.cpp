@@ -272,7 +272,7 @@ struct basicFunction {
     int jumpBackToOrigin;
     int jumpToFunction;
 
-    bool getCalled(fullCompiledCode &compilingCode, std::vector<numberVar> &inputsOuter) {
+    bool getCalled(fullCompiledCode &compilingCode, std::vector<variable*> &inputsOuter) {
         if (inputsOuter.size() != inputsInner.size()) {
             std::cout << "Function hasn't got the correct amount of parameters" << std::endl;
             return false;
