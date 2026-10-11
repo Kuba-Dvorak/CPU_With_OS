@@ -71,7 +71,8 @@ struct typee {
     }
 
     //pokud z toho vyjde wasReferenced jako true, tak nam tahle funkce garantuje ze pointer na to misto je v Reg1!!!
-    numberVar paramPointer(int pointer0, std::string const &ramStartPlace, bool &wasReferenced, bool aboutThis, fullCompiledCode &compilingCode, std::vector<std::string> &keysAfter) {
+    numberVar paramPointer(int pointer0, std::string const &ramStartPlace, bool &wasReferenced, bool aboutThis,
+        fullCompiledCode &compilingCode, std::vector<std::string> &keysAfter) {
         if (name == voidType) {
             return {{ramStartPlace, -1}, -1, false};
         }
