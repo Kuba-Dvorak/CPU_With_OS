@@ -21,7 +21,7 @@ struct basicSyntax {
     std::string movRegRam = " movRegRam ";
     std::string movRamRam = " movRamRam ";
     std::string movRegReg = " movRegReg ";
-    std::string setRam16 = " setRam16 ";
+    std::string setRam16 = " setRam16 "; // pokud je ta vec co setujeme Ram1/2 tak je to movRegRam
     std::string setRam8 = " setRam8 ";
 
     //both jumps are absolute

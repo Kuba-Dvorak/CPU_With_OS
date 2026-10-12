@@ -17,7 +17,7 @@
 enum class regs {
     reg1 = 1,
     reg2 = 2,
-    inRam = -1
+    inPointer = -1
 };
 
 
@@ -42,17 +42,17 @@ struct information {
 
 //
 void copyFromTo(information placeFrom, information placeTo, fullCompiledCode &code) {
-    if ((placeFrom.pointer.pointer == -1 && placeFrom.placement == regs::inRam) || (placeTo.pointer.pointer == -1 && placeTo.placement == regs::inRam) ) {
+    if ((placeFrom.pointer.pointer == -1 && placeFrom.placement == regs::inPointer) || (placeTo.pointer.pointer == -1 && placeTo.placement == regs::inPointer) ) {
         //pointery nejsou definovane => nullptr nebo void
         return;
     }
 
-    if ((placeFrom.placement != regs::inRam && !placeFrom.valueIsPointer) || (placeTo.placement == regs::inRam && !placeTo.valueIsPointer)) {
+    if ((placeFrom.placement != regs::inPointer && !placeFrom.valueIsPointer) || (placeTo.placement == regs::inPointer && !placeTo.valueIsPointer)) {
         //situace neni normalni, nepouzivame tuhle funkce na kopirovani mezi registry totiz, takze tahle situace nema nastat
         return;
     }
 
-    if (placeFrom.placement != regs::inRam && (placeFrom.placement == placeTo.placement)) {
+    if (placeFrom.placement != regs::inPointer && (placeFrom.placement == placeTo.placement)) {
         //pointery jsou na stejnem registru, opet neakceptujeme kopirovani
         return;
     }
@@ -73,7 +73,7 @@ void copyFromTo(information placeFrom, information placeTo, fullCompiledCode &co
         incrementReg2 = true;
     }
 
-    if (placeFrom.placement == regs::inRam) {
+    if (placeFrom.placement == regs::inPointer) {
         fromMemoryDesc = placeFrom.pointer.getString();
     }
 
@@ -87,7 +87,7 @@ void copyFromTo(information placeFrom, information placeTo, fullCompiledCode &co
         incrementReg2 = true;
     }
 
-    if (placeTo.placement == regs::inRam) {
+    if (placeTo.placement == regs::inPointer) {
         toMemoryDesc = placeFrom.pointer.getString();
     }
 
@@ -105,19 +105,31 @@ void copyFromTo(information placeFrom, information placeTo, fullCompiledCode &co
         }
 
         //ne a ano
-        if (placeFrom.placement == regs::inRam) {
-
-        }
+        code.addInstruction(asmSyntax.setRam16 + toMemoryDesc + fromMemoryDesc);
         return;
     }
 
     //ano a ne
     if (placeFrom.valueIsPointer) {
+        if (placeFrom.placement == regs::reg1) {
+
+        }
+        for (int i = 0; i < placeTo.size; i++) {
+
+        }
         return;
     }
 
     //ne a ne
+    for (int i = 0; i < placeTo.size; i ++) {
+        code.addInstruction(asmSyntax.mov + toMemoryDesc + fromMemoryDesc);
+        if (incrementReg1) {
 
+        }
+        if (incrementReg2) {
+
+        }
+    }
 
 }
 
