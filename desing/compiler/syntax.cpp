@@ -20,6 +20,7 @@ struct basicSyntax {
 
     // RAM adresa 0 = vzit z registru 1
     std::string addReg = " add8 ";// add8 works like this: var1 = reg code, var2 = adding number, if the reg code is 5, similary for var3 and var4
+    std::string rmReg = " rm8 ";
     std::string addRam = " addRam ";
     std::string incrementReg = " increment ";
     std::string movRegRam = " movRegRam ";

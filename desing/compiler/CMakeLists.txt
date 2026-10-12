@@ -13,4 +13,5 @@ add_executable(compiler main.cpp
         memoryManagment/codeGenerator.cpp
         memoryManagment/scopes.cpp
         memoryManagment/variables.cpp
+        memoryManagment/functions.cpp
 )

@@ -17,6 +17,7 @@ struct offset {
     int localPointer; // => chyba
     bool inReg;
     bool isRef;
+    int lastSize;
 };
 
 
@@ -54,21 +55,25 @@ struct typee {
 
     offset loadFromTyper(fullCompiledCode &code, std::vector<std::string> &keysAfter, typePasser &pass) {
         if (keysAfter.size() <= 0) {
+            int returnSize = size;
+            if (pass.isThisRef) {
+                returnSize = 2;
+            }
             if (pass.alreadyInReg) {
                 if (pass.curentlyInOper) {
                     code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + inRegToString(pass.placeTo));
                 }
                 code.addInstruction(asmSyntax.addReg + inRegToString(pass.placeTo) + std::to_string(pass.curPointer));
-                return {-1, true, pass.isThisRef};
+                return {-1, true, pass.isThisRef, returnSize};
             }
-            return {pass.curPointer, false, pass.isThisRef};
+            return {pass.curPointer, false, pass.isThisRef, returnSize};
         }
 
         typee* child = findParamOnKey(keysAfter[0], pass);
         keysAfter.erase(keysAfter.begin());
 
         if (child == nullptr) {
-            return {-2, false, false};
+            return {-2, false, false, -1};
         }
 
         if (pass.alreadyInReg) {
@@ -124,20 +129,106 @@ struct variable {
     int localPointer0;
     bool isRef;
 
-    void call(std::vector<std::string> &keysAfter, fullCompiledCode &code) {
+    variable(std::string &name, typee* theType, int pointer0, bool isRef) {
+        this->name = name;
+        myTypee = theType;
+        localPointer0 = pointer0;
+        this->isRef = isRef;
+    }
 
+    void call(std::vector<std::string> &keysAfter, fullCompiledCode &code, place &whereTo) {
+        typePasser passerr = {isRef, localPointer0, inRegOposite(whereTo.regLoc)};
+        if (isRef && !keysAfter.empty()) {
+            code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(localPointer0) + asmSyntax.regStackOper);
+            code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + inRegToString(inRegOposite(whereTo.regLoc)));
+            passerr.curPointer = 0;
+            passerr.alreadyInReg = true;
+        }
+        offset myOffset = myTypee->loadFromTyper(code, keysAfter, passerr);
+        if (myOffset.localPointer == -2) {
+            //error, keysAfter jsou spatne
+            return;
+        }
+        copyFromTo({myOffset.lastSize, myOffset.localPointer, myOffset.isRef, myOffset.inReg, inRegOposite(whereTo.regLoc)}, whereTo, code);
     }
 
 
-    void set() {
-
+    void set(std::vector<std::string> &keysAfter, fullCompiledCode &code, place &whereFrom) {
+        typePasser passerr = {isRef, localPointer0, inRegOposite(whereFrom.regLoc)};
+        if (isRef && !keysAfter.empty()) {
+            code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(localPointer0) + asmSyntax.regStackOper);
+            code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + inRegToString(inRegOposite(whereFrom.regLoc)));
+            passerr.curPointer = 0;
+            passerr.alreadyInReg = true;
+        }
+        offset myOffset = myTypee->loadFromTyper(code, keysAfter, passerr);
+        if (myOffset.localPointer == -2) {
+            //error, keysAfter jsou spatne
+            return;
+        }
+        copyFromTo(whereFrom, {myOffset.lastSize, myOffset.localPointer, myOffset.isRef, myOffset.inReg, inRegOposite(whereFrom.regLoc)}, code);
     }
 
 };
 
 
+struct typesHandle {
+    std::deque<typee> typeList;
+
+    void startCreatingNewType(std::string &name, int potSize = 0) {
+        typeList.push_back({name});
+        if (name == numType) {
+            typeList.back().calculateSize(potSize);
+        }
+    }
+
+    void createPartNewType(std::string &param, std::string &key, bool isRef) {
+        typeList.back().params.push_back(findType(param));
+        typeList.back().isRef.push_back(isRef);
+        typeList.back().paramKeys.push_back(key);
+    }
+
+    void stopCreatingNewType() {
+        typeList.back().calculateSize();
+    }
+
+    typee* findType(std::string &key) {
+        for (size_t i = 0; i < typeList.size(); i++) {
+            if (typeList[i].name == key) {
+                return &typeList[i];
+            }
+        }
+        std::cout << "Type doesn't exist: " << key << "\n" << std::endl;
+        return nullptr;
+    }
+};
 
 
+struct varHandle {
+    std::deque<variable> varList;
+
+    void addNewVariable(std::string &name, typee* typee, int pointer, bool isRef) {
+        varList.push_back({name, typee, pointer, isRef});
+    }
+
+    variable* returnVar(std::string &name) {
+        for (size_t i = 0; i < varList.size(); i++) {
+            if (varList[i].name == name) {
+                return &varList[i];
+            }
+        }
+        std::cout << "Variable doesn't exist: " << name << "\n" << std::endl;
+        return nullptr;
+    }
 
 
-
+    void deleteVar(std::string &name) {
+        for (size_t i = 0; i < varList.size(); i++) {
+            if (varList[i].name == name) {
+                varList.erase(varList.begin() + i);
+                return;
+            }
+        }
+        std::cout << "Variable doesn't exist: " << name << "\n" << std::endl;
+    }
+};
