@@ -14,123 +14,135 @@
 //a u set: kam, co
 
 
-enum class regs {
+enum class varVarCopyTable {
+    pointerToPointer = 1,
+    pointerToValue = 2,
+    valueToPointer = 3,
+    valueToValue = 4
+};
+
+enum class inReg {
     reg1 = 1,
-    reg2 = 2,
-    inPointer = -1
+    reg2 = 2
 };
 
 
-struct ramPointer {
-    std::string locale0;
-    int pointer = -1;
-
-    std::string getString() {
-        return (" " + locale0 + " " + std::to_string(pointer));
+inReg inRegOposite(inReg arg) {
+    if (arg == inReg::reg1) {
+        return inReg::reg2;
     }
-};
+    return inReg::reg1;
+}
 
 
+std::string inRegToString(inReg inpt) {
+    if (inpt == inReg::reg1) {
+        return asmSyntax.reg1;
+    }
+    return asmSyntax.reg2;
+}
 
-struct information {
-    regs placement;
-    ramPointer pointer;
+
+struct place {
     int size;
-    bool valueIsPointer;
-};
+    int pointer = -1;
+    bool isRef; // mluvi o obsahu
+    bool isInReg;
+    inReg regLoc;
 
-
-//
-void copyFromTo(information placeFrom, information placeTo, fullCompiledCode &code) {
-    if ((placeFrom.pointer.pointer == -1 && placeFrom.placement == regs::inPointer) || (placeTo.pointer.pointer == -1 && placeTo.placement == regs::inPointer) ) {
-        //pointery nejsou definovane => nullptr nebo void
-        return;
-    }
-
-    if ((placeFrom.placement != regs::inPointer && !placeFrom.valueIsPointer) || (placeTo.placement == regs::inPointer && !placeTo.valueIsPointer)) {
-        //situace neni normalni, nepouzivame tuhle funkce na kopirovani mezi registry totiz, takze tahle situace nema nastat
-        return;
-    }
-
-    if (placeFrom.placement != regs::inPointer && (placeFrom.placement == placeTo.placement)) {
-        //pointery jsou na stejnem registru, opet neakceptujeme kopirovani
-        return;
-    }
-
-    bool incrementReg1 = false;
-    bool incrementReg2 = false;
-    //kde je pointer na tu vec (at je ta vec uz pointer nebo ne)
-    std::string fromMemoryDesc;
-    std::string toMemoryDesc;
-
-    if (placeFrom.placement == regs::reg1) {
-        fromMemoryDesc = asmSyntax.addr1;
-        incrementReg1 = true;
-    }
-
-    if (placeFrom.placement == regs::reg2) {
-        fromMemoryDesc = asmSyntax.addr2;
-        incrementReg2 = true;
-    }
-
-    if (placeFrom.placement == regs::inPointer) {
-        fromMemoryDesc = placeFrom.pointer.getString();
-    }
-
-    if (placeTo.placement == regs::reg1) {
-        toMemoryDesc = asmSyntax.addr1;
-        incrementReg1 = true;
-    }
-
-    if (placeTo.placement == regs::reg2) {
-        toMemoryDesc = asmSyntax.addr2;
-        incrementReg2 = true;
-    }
-
-    if (placeTo.placement == regs::inPointer) {
-        toMemoryDesc = placeFrom.pointer.getString();
-    }
-
-    //4 moznosti s referencemi (from, to):
-    //ne a ne = kopirovani, podle velikosti to
-    //ano a ne = obsah toho kam ted ukazujeme je pointer, takze naloadim tamto do reg1
-    //ne a ano = vezmi pointer na from
-    //ano a ano = zkopiruj obsah from do to, velikost 2
-
-    if (placeTo.valueIsPointer) {
-        //ano a ano
-        if (placeFrom.valueIsPointer) {
-            code.addInstruction(asmSyntax.mov + toMemoryDesc + fromMemoryDesc);
+    void turnToGlobal(inReg desiredReg, fullCompiledCode &code) {
+        if (isInReg) {  
+            code.addInstruction(asmSyntax.movRegReg16 + inRegToString(regLoc) + inRegToString(desiredReg));
             return;
         }
 
-        //ne a ano
-        code.addInstruction(asmSyntax.setRam16 + toMemoryDesc + fromMemoryDesc);
+        code.addInstruction(asmSyntax.setReg + asmSyntax.regStackOper + std::to_string(pointer));
+        code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + asmSyntax.regStackOper + inRegToString(desiredReg));
+    }
+};
+
+
+//hloupa funkce kterou ovlada copyFromTo, kopiruje podle adres a to veci z reg1 do reg2
+//bere "tabulku"
+void copyByTable(varVarCopyTable inpt, int toSize, fullCompiledCode &code, inReg regFrom, inReg regTo) {
+    if (inpt == varVarCopyTable::pointerToPointer) {
+        code.addInstruction(asmSyntax.movRamRam16 + inRegToString(regFrom) + inRegToString(regTo));
         return;
     }
 
-    //ano a ne
-    if (placeFrom.valueIsPointer) {
-        if (placeFrom.placement == regs::reg1) {
-
-        }
-        for (int i = 0; i < placeTo.size; i++) {
-
+    if (inpt == varVarCopyTable::pointerToValue) {
+        code.addInstruction(asmSyntax.movRamReg16 + inRegToString(regFrom) + asmSyntax.regStackOper);
+        for (int i = 0; i < toSize; i++) {
+            code.addInstruction(asmSyntax.movRamRam + asmSyntax.regStackOper + inRegToString(regTo));
+            code.addInstruction(asmSyntax.incrementReg + asmSyntax.regStackOper);
+            code.addInstruction(asmSyntax.incrementReg + inRegToString(regTo));
         }
         return;
     }
 
-    //ne a ne
-    for (int i = 0; i < placeTo.size; i ++) {
-        code.addInstruction(asmSyntax.mov + toMemoryDesc + fromMemoryDesc);
-        if (incrementReg1) {
-
-        }
-        if (incrementReg2) {
-
-        }
+    if (inpt == varVarCopyTable::valueToPointer) {
+        code.addInstruction(asmSyntax.movRegRam16 + inRegToString(regFrom) + inRegToString(regTo));
+        return;
     }
 
+    if (inpt == varVarCopyTable::valueToValue) {
+        for (int i = 0; i < toSize; i++) {
+            code.addInstruction(asmSyntax.movRamRam + inRegToString(regFrom) + inRegToString(regTo));
+            code.addInstruction(asmSyntax.incrementReg + inRegToString(regFrom));
+            code.addInstruction(asmSyntax.incrementReg + inRegToString(regTo));
+        }
+        return;
+    }
+}
+
+
+varVarCopyTable varsToTable(place &from, place &to) {
+    if (from.isRef) {
+        if (to.isRef) {
+            return varVarCopyTable::pointerToPointer;
+        }
+        return varVarCopyTable::pointerToValue;
+    }
+
+    if (to.isRef) {
+        return varVarCopyTable::valueToPointer;
+    }
+
+    return varVarCopyTable::valueToValue;
+}
+
+
+
+bool copyFromTo(place from, place to, fullCompiledCode &code) {
+    if ((!to.isRef && to.pointer == -1) || (!from.isRef && from.pointer == -1)) {
+        //nullptr nic nekopirujeme, nebo void, taky nic nekopirujeme
+        return false;
+    }
+    if ((from.isInReg && to.isInReg) && (from.regLoc == to.regLoc)) {
+        //jsou ve stejnem hrnicku !!!
+        return false;
+    }
+
+    if (from.isInReg) {
+        if (to.isInReg) {
+            copyByTable(varsToTable(from, to), to.size, code, from.regLoc, to.regLoc);
+            return true;
+        }
+        to.turnToGlobal(inRegOposite(from.regLoc), code);
+        copyByTable(varsToTable(from, to), to.size, code, from.regLoc, inRegOposite(from.regLoc));
+        return true;
+    }
+
+    if (to.isInReg) {
+        from.turnToGlobal(inRegOposite(to.regLoc), code);
+        copyByTable(varsToTable(from, to), to.size, code, inRegOposite(to.regLoc), to.regLoc);
+        return true;
+    }
+    from.turnToGlobal(inReg::reg1, code);
+    to.turnToGlobal(inReg::reg2, code);
+    copyByTable(varsToTable(from, to), to.size, code, inReg::reg1, inReg::reg2);
+
+    return true;
 }
 
 

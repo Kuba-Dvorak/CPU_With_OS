@@ -10,4 +10,7 @@ add_executable(compiler main.cpp
         newTryWhole.cpp
         syntax.cpp
         memoryManagment/memoryOperations.cpp
-        memoryManagment/codeGenerator.cpp)
+        memoryManagment/codeGenerator.cpp
+        memoryManagment/scopes.cpp
+        memoryManagment/variables.cpp
+)
