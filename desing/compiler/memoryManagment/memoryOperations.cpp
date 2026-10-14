@@ -112,7 +112,6 @@ varVarCopyTable varsToTable(place &from, place &to) {
 }
 
 
-
 bool copyFromTo(place from, place to, fullCompiledCode &code) {
     if ((!to.isRef && to.pointer == -1) || (!from.isRef && from.pointer == -1)) {
         //nullptr nic nekopirujeme, nebo void, taky nic nekopirujeme
@@ -146,4 +145,13 @@ bool copyFromTo(place from, place to, fullCompiledCode &code) {
 }
 
 
-
+bool setRamLocal(int number, int localPos, int size, fullCompiledCode &code) {
+    if (localPos > 65537 || size > 65537) {
+        return false;
+    }
+    for (int i = 0; i < size; i++) {
+        code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(localPos + i) + asmSyntax.regStackOper);
+        code.addInstruction(asmSyntax.setRam8 + asmSyntax.regStackOper + std::to_string((number >> (i*8)) & 0xFF));
+    }
+    return true;
+}

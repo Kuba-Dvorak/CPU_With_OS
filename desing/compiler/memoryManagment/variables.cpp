@@ -212,7 +212,8 @@ struct varHandle {
     }
 
     variable* returnVar(std::string &name) {
-        for (size_t i = 0; i < varList.size(); i++) {
+        //jdeme odzadu => vzdy vezmeme to v nejnizsim levelu => promene se stejnym jmenem
+        for (int i = varList.size() - 1; i >= 0; i--) {
             if (varList[i].name == name) {
                 return &varList[i];
             }
@@ -223,7 +224,7 @@ struct varHandle {
 
 
     void deleteVar(std::string &name) {
-        for (size_t i = 0; i < varList.size(); i++) {
+        for (int i = varList.size() - 1; i >= 0; i--) {
             if (varList[i].name == name) {
                 varList.erase(varList.begin() + i);
                 return;

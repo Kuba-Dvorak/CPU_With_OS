@@ -42,3 +42,4 @@ struct basicSyntax {
 basicSyntax asmSyntax;
 std::string constexpr staticRamSeg = "static";
 std::string constexpr dynamicRamSeg = "dynamic";
+std::string constexpr returnNamer = "returnNamer";

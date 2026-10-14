@@ -12,10 +12,11 @@
 
 struct codeScope {
     int curPos = 0;
-    std::vector<std::string> scopeVars;
+    std::vector<std::string> scopeVars = {};
 
-    void increase(int bySize) {
+    int increase(int bySize) {
         curPos += bySize;
+        return curPos - bySize;
     }
 
     void destroy(varHandle &handle) {
@@ -44,14 +45,18 @@ struct segmentManager {
     std::vector<codeScope> curScopes;
     cache myCache;
 
-    void callDiffFunq(fullCompiledCode &code) {
-        code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(curScopes.back().curPos + myCache.curSize) + asmSyntax.regStackOper);
+    void callDiffFunq(fullCompiledCode &code, int outputSize) {
+        myCache.reqFreePointer(outputSize);
+        code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer
+            + std::to_string(curScopes.back().curPos + myCache.curSize - outputSize) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
     }
 
     //volat hned po ukonceni funkce !!!
-    void endFunq(fullCompiledCode &code) {
-        code.addInstruction(asmSyntax.rmReg + asmSyntax.regStackPointer + std::to_string(curScopes.back().curPos + myCache.curSize) + asmSyntax.regStackOper);
+    void endFunq(fullCompiledCode &code, int outputSize) {
+        myCache.curSize -= outputSize; //takhle kdyz pak nacteme dalsi freeSub, tak v nem bude ten output (pokud bude mit velikost outputSize)
+        code.addInstruction(asmSyntax.rmReg + asmSyntax.regStackPointer
+            + std::to_string(curScopes.back().curPos + myCache.curSize - outputSize) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
     }
 
@@ -63,9 +68,9 @@ struct segmentManager {
         myCache.reset();
     }
 
-    void reqFreeForVar(int forSize, std::string &name) {
-        curScopes.back().increase(forSize);
+    int reqFreeForVar(int forSize, std::string name) {
         curScopes.back().scopeVars.push_back(name);
+        return curScopes.back().increase(forSize);
     }
 
     void createNewScope() {
