@@ -9,7 +9,6 @@
 #include "./scopes.cpp"
 
 
-
 struct basicFunction {
     std::string name;
     segmentManager mySegmentManager = {};
@@ -50,6 +49,7 @@ struct basicFunction {
     }
 
     bool getCalled(fullCompiledCode &code) {
+        //pointer je output size, protoze output je na 0, a misto na jumpback je na pozici pote
         if (setRamLocal(code.currentLine, outputType.myTypee->size, 2, code)) {
 
             return true;
