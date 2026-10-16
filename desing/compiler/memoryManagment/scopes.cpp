@@ -51,7 +51,7 @@ struct passerPair {
 struct segmentManager {
     std::vector<codeScope> curScopes;
     cache myCache;
-    int lastFunqOffset = 0;
+    std::vector<int> lastFunqOffset = {};
 
     //in vars jsou ty co tam posilame do toho, ty z funkce jsou ty funqVars
     void callDiffFunq(fullCompiledCode &code, variable* output, std::vector<passerPair> &inVars,
@@ -61,19 +61,19 @@ struct segmentManager {
             return;
         }
         int absSize = output->myTypee->size + jumpSize;
-        myCache.reqFreePointer(output->myTypee->size + jumpSize);
+        reqFreeSub(output->myTypee->size + jumpSize);
 
         for (int i = 0; i < inVars.size(); i++) {
             int itsSize = funqVars[i]->getSize();
-            place location = {itsSize, myCache.reqFreePointer(itsSize), funqVars[i]->isRef, false, inReg::reg2};
+            place location = {itsSize, reqFreeSub(itsSize), funqVars[i]->isRef, false, inReg::reg2};
             absSize += itsSize;
             inVars[i].var->call(inVars[i].keys, code, location);
         }
 
         code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer
-            + std::to_string(curScopes.back().curPos + myCache.curSize - absSize) + asmSyntax.regStackOper);
+            + std::to_string(reqFreeSub(0) - absSize) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
-        lastFunqOffset = absSize;
+        lastFunqOffset.push_back(absSize);
     }
 
     //volat hned po ukonceni funkce !!!
@@ -81,8 +81,9 @@ struct segmentManager {
          //takhle kdyz pak nacteme dalsi freeSub, tak v nem bude ten output (pokud bude mit velikost outputSize)
          ////a ty dalsi potom muzeme prepsat takze to je ok
         code.addInstruction(asmSyntax.rmReg + asmSyntax.regStackPointer
-            + std::to_string(curScopes.back().curPos + myCache.curSize - lastFunqOffset) + asmSyntax.regStackOper);
+            + std::to_string(curScopes.back().curPos + myCache.curSize - lastFunqOffset.back()) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
+        lastFunqOffset.pop_back();
     }
 
     int reqFreeSub(int forSize) {

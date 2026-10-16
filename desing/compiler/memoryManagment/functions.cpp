@@ -9,7 +9,6 @@
 #include "./scopes.cpp"
 
 
-
 struct basicFunction {
     std::string name;
     segmentManager mySegmentManager = {};
@@ -52,7 +51,7 @@ struct basicFunction {
 
     //vola se AZ PO FUNKCI ZE SEGMENTU, TOTO UZ JE V LOKALNI PROMENE SETUP
     bool getCalled(fullCompiledCode &code) {
-        if (setRamLocal(code.currentLine + 1, outputType->myTypee->size, 2, code)) {
+        if (setRamLocal(code.currentLine + 3, outputType->myTypee->size, 2, code)) {
             code.addInstruction(asmSyntax.setReg + asmSyntax.reg5 + std::to_string(jumpToFunction));
             code.addInstruction(asmSyntax.jumpFromReg + asmSyntax.reg5);
             return true;
@@ -65,7 +64,7 @@ struct basicFunction {
     void getReturnCMD(place thingToReturn, fullCompiledCode &code) {
         std::vector<std::string> nothingKeys = {};
         outputType->set(nothingKeys, code, thingToReturn);
-        code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(2) + asmSyntax.regStackOper);
+        code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(outputType->myTypee->size) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + asmSyntax.reg5);
         code.addInstruction(asmSyntax.jumpFromReg + asmSyntax.reg5);
     }
