@@ -169,6 +169,12 @@ struct variable {
         copyFromTo(whereFrom, {myOffset.lastSize, myOffset.localPointer, myOffset.isRef, myOffset.inReg, inRegOposite(whereFrom.regLoc)}, code);
     }
 
+    int getSize() {
+        if (isRef) {
+            return 2;
+        }
+        return myTypee->size;
+    }
 };
 
 

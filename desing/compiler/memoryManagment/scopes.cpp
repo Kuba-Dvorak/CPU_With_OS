@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <deque>
+#include <filesystem>
 #include <memory>
 #include <string_view>
 #include "./variables.cpp"
@@ -41,23 +42,48 @@ struct cache {
 };
 
 
+struct passerPair {
+    variable* var;
+    std::vector<std::string> keys;
+};
+
+
 struct segmentManager {
     std::vector<codeScope> curScopes;
     cache myCache;
+    std::vector<int> lastFunqOffset = {};
 
-    void callDiffFunq(fullCompiledCode &code, int outputSize) {
-        myCache.reqFreePointer(outputSize);
+    //in vars jsou ty co tam posilame do toho, ty z funkce jsou ty funqVars
+    void callDiffFunq(fullCompiledCode &code, variable* output, std::vector<passerPair> &inVars,
+        std::vector<variable*> const &funqVars, int jumpSize) {
+        if (funqVars.size() != inVars.size()) {
+            //chyba, nespravny pocet argumentu na vstupu funkce
+            return;
+        }
+        int absSize = output->myTypee->size + jumpSize;
+        reqFreeSub(output->myTypee->size + jumpSize);
+
+        for (int i = 0; i < inVars.size(); i++) {
+            int itsSize = funqVars[i]->getSize();
+            place location = {itsSize, reqFreeSub(itsSize), funqVars[i]->isRef, false, inReg::reg2};
+            absSize += itsSize;
+            inVars[i].var->call(inVars[i].keys, code, location);
+        }
+
         code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer
-            + std::to_string(curScopes.back().curPos + myCache.curSize - outputSize) + asmSyntax.regStackOper);
+            + std::to_string(reqFreeSub(0) - absSize) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
+        lastFunqOffset.push_back(absSize);
     }
 
     //volat hned po ukonceni funkce !!!
-    void endFunq(fullCompiledCode &code, int outputSize) {
-        myCache.curSize -= outputSize; //takhle kdyz pak nacteme dalsi freeSub, tak v nem bude ten output (pokud bude mit velikost outputSize)
+    void endFunq(fullCompiledCode &code, variable* output, std::vector<variable*> const &inVars, int jumpSize) {
+         //takhle kdyz pak nacteme dalsi freeSub, tak v nem bude ten output (pokud bude mit velikost outputSize)
+         ////a ty dalsi potom muzeme prepsat takze to je ok
         code.addInstruction(asmSyntax.rmReg + asmSyntax.regStackPointer
-            + std::to_string(curScopes.back().curPos + myCache.curSize - outputSize) + asmSyntax.regStackOper);
+            + std::to_string(curScopes.back().curPos + myCache.curSize - lastFunqOffset.back()) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
+        lastFunqOffset.pop_back();
     }
 
     int reqFreeSub(int forSize) {
