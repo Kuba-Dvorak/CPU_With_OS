@@ -1,6 +1,8 @@
 #include <string>
 
-//mov, set je 1. vec: kam, 2. vec: odkud
+//mov: odkud kam
+//set: kam co
+//add: co1, co2, kam ulozit
 struct basicSyntax {
     std::string setReg = " setReg ";
     std::string movRamReg = " movRamReg ";
@@ -16,7 +18,9 @@ struct basicSyntax {
     //latche
     std::string latchALUCarryI = " LACI ";
     std::string latchALUCarryO = " LACO ";
-    std::string latchCompare = " LC ";
+    std::string latchCompare = " LC "; //neni uz zapojen primo na preskoceni dalsi instrukce jako v orig. navrhu, da se setovat
+    std::string skippingLatch = " LSkip "; //vstupni brana mezi LC a preskocenim dalsi insturkce jako v origin. navrhu, da se setovat a resetuje se pri dalsi instrukci
+    //vstup z LC do LSkip je negovany
 
     // RAM adresa 0 = vzit z registru 1
     std::string addReg = " add8 ";// add8 works like this: var1 = reg code, var2 = adding number, if the reg code is 5, similary for var3 and var4
@@ -36,11 +40,21 @@ struct basicSyntax {
     //both jumps are absolute
     std::string jumpFromReg = " jumpReg ";
     std::string jumpDictate = " jump ";
-    //reg 3 = carry out latch, reg 4 = carry in latch
+
+
+    //comparative
+    std::string compare = " compare ";
+    //pro compare flagy
+    std::string equal = " eq ";
+    std::string biggerThan = " big ";
+    std::string smallerThan = " sml ";
+    std::string bigSmallThan = " smbg ";
+    std::string bigequal = " ebig ";
+    std::string smequal = " esml ";
 };
 
 basicSyntax asmSyntax;
 std::string constexpr staticRamSeg = "static";
 std::string constexpr dynamicRamSeg = "dynamic";
 std::string constexpr returnNamer = "returnNamer";
-std::string constexpr returnNamer = "returnNamer";
+int constexpr addressSize = 2;

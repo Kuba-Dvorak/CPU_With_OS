@@ -51,7 +51,7 @@ struct place {
     inReg regLoc;
 
     void turnToGlobal(inReg desiredReg, fullCompiledCode &code) {
-        if (isInReg) {  
+        if (isInReg) {
             code.addInstruction(asmSyntax.movRegReg16 + inRegToString(regLoc) + inRegToString(desiredReg));
             return;
         }
@@ -64,7 +64,7 @@ struct place {
 
 //hloupa funkce kterou ovlada copyFromTo, kopiruje podle adres a to veci z reg1 do reg2
 //bere "tabulku"
-void copyByTable(varVarCopyTable inpt, int toSize, fullCompiledCode &code, inReg regFrom, inReg regTo) {
+void copyByTable(varVarCopyTable inpt, int toSize, fullCompiledCode &code, inReg regFrom, inReg regTo, bool changeOriginal) {
     if (inpt == varVarCopyTable::pointerToPointer) {
         code.addInstruction(asmSyntax.movRamRam16 + inRegToString(regFrom) + inRegToString(regTo));
         return;
@@ -81,6 +81,15 @@ void copyByTable(varVarCopyTable inpt, int toSize, fullCompiledCode &code, inReg
     }
 
     if (inpt == varVarCopyTable::valueToPointer) {
+        if (changeOriginal) {
+            code.addInstruction(asmSyntax.movRamReg16 + inRegToString(regTo) + asmSyntax.regStackOper);
+            for (int i = 0; i < toSize; i++) {
+                code.addInstruction(asmSyntax.movRamRam + inRegToString(regFrom) + asmSyntax.regStackOper);
+                code.addInstruction(asmSyntax.incrementReg + asmSyntax.regStackOper);
+                code.addInstruction(asmSyntax.incrementReg + inRegToString(regFrom));
+            }
+            return;
+        }
         code.addInstruction(asmSyntax.movRegRam16 + inRegToString(regFrom) + inRegToString(regTo));
         return;
     }
@@ -112,8 +121,8 @@ varVarCopyTable varsToTable(place &from, place &to) {
 }
 
 
-bool copyFromTo(place from, place to, fullCompiledCode &code) {
-    if ((!to.isRef && to.pointer == -1) || (!from.isRef && from.pointer == -1)) {
+bool copyFromTo(place from, place to, fullCompiledCode &code, bool pointingMode) {
+    if ((!to.isRef && to.pointer == -2) || (!from.isRef && from.pointer == -2)) {
         //nullptr nic nekopirujeme, nebo void, taky nic nekopirujeme
         return false;
     }
@@ -121,25 +130,31 @@ bool copyFromTo(place from, place to, fullCompiledCode &code) {
         //jsou ve stejnem hrnicku !!!
         return false;
     }
-
+    
+    int toSize = to.size;
+    if (pointingMode) {
+        //davame duveru uzivateli
+        toSize = from.size;
+    }
+    
     if (from.isInReg) {
         if (to.isInReg) {
-            copyByTable(varsToTable(from, to), to.size, code, from.regLoc, to.regLoc);
+            copyByTable(varsToTable(from, to), toSize, code, from.regLoc, to.regLoc, pointingMode);
             return true;
         }
         to.turnToGlobal(inRegOposite(from.regLoc), code);
-        copyByTable(varsToTable(from, to), to.size, code, from.regLoc, inRegOposite(from.regLoc));
+        copyByTable(varsToTable(from, to), toSize, code, from.regLoc, inRegOposite(from.regLoc), pointingMode);
         return true;
     }
 
     if (to.isInReg) {
         from.turnToGlobal(inRegOposite(to.regLoc), code);
-        copyByTable(varsToTable(from, to), to.size, code, inRegOposite(to.regLoc), to.regLoc);
+        copyByTable(varsToTable(from, to), toSize, code, inRegOposite(to.regLoc), to.regLoc, pointingMode);
         return true;
     }
     from.turnToGlobal(inReg::reg1, code);
     to.turnToGlobal(inReg::reg2, code);
-    copyByTable(varsToTable(from, to), to.size, code, inReg::reg1, inReg::reg2);
+    copyByTable(varsToTable(from, to), toSize, code, inReg::reg1, inReg::reg2, pointingMode);
 
     return true;
 }

@@ -1,29 +1,25 @@
 #pragma once
-// Referencni simulator ISA tak, jak ji pouziva kompilator (syntax.cpp).
-// Spousti textove instrukce z fullCompiledCode::code a zaznamenava, co delaji s RAM a registry.
+// Referencni simulator ISA tak, jak ji pouziva kompilator (syntax.cpp + memoryManagment/*).
+// Spousti textove instrukce z fullCompiledCode::code vcetne skoku a zaznamenava RAM, registry a SP.
 //
 // PREDPOKLADY (pokud neco nesedi s tvym CPU, oprav to tady - vsechny testy se tim ridi):
-//   - registry R0..R5 jsou 16bitove, R0 je jen pro cteni (zapisuje do nej jen ALU / increment)
-//   - "Ram1" / "Ram2" jako adresa = RAM[R1] / RAM[R2]
-//   - "<segment> <offset>" jako adresa = baze segmentu + offset (bazi dosadi linker, tady Config)
+//   - registry R0..R5 jsou 16bitove; R0 je jen pro cteni; R3 = stack pointer, R4 = pomocny pro vypocty s SP, R5 = adresa skoku
+//   - registr na miste RAM operandu = neprima adresa, napr. movRamRam R1 R2 kopiruje RAM[R1] -> RAM[R2]
 //   - mov*: 1. operand odkud, 2. operand kam;  set*: 1. operand kam, 2. operand co
+//   - add8 A B [C]: C = A + B (B je registr nebo cislo, bez C se vysledek zapise do A); pocita 16bitove, protoze se tim pocitaji adresy
+//   - rm8 A B [C]: totez s odcitanim
+//   - increment Rx: Rx = Rx + 1 (16 bit, primo v registru)
+//   - jump N / jumpReg Rx: absolutni skok na index instrukce (zatim radky, bez *5); konec programu = skok za posledni instrukci
 //   - *16 instrukce: little endian (dolni bajt na nizsi adrese)
-//   - increment Rx: R0 = Rx + 1 (16 bit), Rx se nemeni
 //   - adresa 0 je rezervovana (ramOutOkBit), pristup na ni je chyba
 #include <array>
 #include <cstdint>
-#include <map>
 #include <set>
 #include <sstream>
 #include <string>
 #include <vector>
 
 namespace sim {
-
-struct Config {
-    std::map<std::string, int> segmentBase = {{"static", 0x4000}, {"dynamic", 0x8000}};
-    int maxSteps = 100000;
-};
 
 struct RamWrite {
     uint16_t addr;
@@ -32,9 +28,8 @@ struct RamWrite {
 };
 
 struct TraceRow {
-    int line;
-    std::string text;
-    std::array<uint16_t, 6> regs;
+    int pc;
+    std::array<uint16_t, 6> regs;  // po provedeni
     std::vector<RamWrite> writes;
 };
 
@@ -48,26 +43,40 @@ class Machine {
 public:
     std::array<uint8_t, 65536> ram{};
     std::array<uint16_t, 6> reg{};
-    Config cfg;
     std::vector<Error> errors;
     std::vector<TraceRow> trace;
     bool recordTrace = false;
     std::set<int> regsWritten;
+    std::vector<RamWrite> allWrites;
     int steps = 0;
+    int maxSteps = 200000;
+    bool halted = false;
 
-    uint16_t read16(int addr) const { return ram[addr & 0xFFFF] | (ram[(addr + 1) & 0xFFFF] << 8); }
+    uint16_t read16(int a) const { return ram[a & 0xFFFF] | (ram[(a + 1) & 0xFFFF] << 8); }
+    void write16(int a, uint16_t v) {
+        ram[a & 0xFFFF] = v & 0xFF;
+        ram[(a + 1) & 0xFFFF] = v >> 8;
+    }
 
-    // vrati false pri chybe (chyba je zapsana do errors)
+    // spusti od radku 0, dokud pc nevyjede za konec kodu
     bool run(const std::vector<std::string> &code) {
-        for (int line = 0; line < (int)code.size(); line++) {
-            if (++steps > cfg.maxSteps) {
-                fail(line, code[line], "prekrocen limit kroku");
+        int pc = 0;
+        while (pc != (int)code.size()) {
+            if (pc < 0 || pc > (int)code.size()) {
+                errors.push_back({pc, "", "skok mimo kod (pc = " + std::to_string(pc) + ")"});
+                return false;
+            }
+            if (++steps > maxSteps) {
+                errors.push_back({pc, code[pc], "prekrocen limit " + std::to_string(maxSteps) + " kroku (nekonecna smycka?)"});
                 return false;
             }
             curWrites.clear();
-            if (!exec(line, code[line])) return false;
-            if (recordTrace) trace.push_back({line, code[line], reg, curWrites});
+            int next = pc + 1;
+            if (!exec(pc, code[pc], next)) return false;
+            if (recordTrace) trace.push_back({pc, reg, curWrites});
+            pc = next;
         }
+        halted = true;
         return true;
     }
 
@@ -79,11 +88,10 @@ private:
     std::string curText;
     bool bad = false;
 
-    void fail(int line, const std::string &text, const std::string &msg) {
-        errors.push_back({line, text, msg});
+    void fail(const std::string &msg) {
+        if (!bad) errors.push_back({curLine, curText, msg});
         bad = true;
     }
-    void fail(const std::string &msg) { fail(curLine, curText, msg); }
 
     std::string next() {
         if (pos >= tok.size()) {
@@ -102,43 +110,42 @@ private:
         return true;
     }
 
-    int regIndex(const std::string &t) {
+    static int regOf(const std::string &t) {
         if (t.size() == 2 && t[0] == 'R' && t[1] >= '0' && t[1] <= '5') return t[1] - '0';
-        fail("ocekavan registr, nalezeno '" + t + "'");
-        return 0;
+        return -1;
     }
 
-    int parseReg() { return regIndex(next()); }
+    int parseReg() {
+        std::string t = next();
+        int r = regOf(t);
+        if (r < 0) fail("ocekavan registr, nalezeno '" + t + "'");
+        return r < 0 ? 0 : r;
+    }
 
+    // registr = neprima adresa, cislo = primo adresa
     int parseAddr() {
         std::string t = next();
-        if (t == "Ram1") return reg[1];
-        if (t == "Ram2") return reg[2];
-        auto seg = cfg.segmentBase.find(t);
-        if (seg != cfg.segmentBase.end()) {
-            std::string off = next();
-            if (!isInt(off)) {
-                fail("za segmentem '" + t + "' chybi offset, nalezeno '" + off + "'");
-                return 1;
-            }
-            int a = seg->second + std::stoi(off);
-            if (a < 0 || a > 0xFFFF) fail("adresa mimo RAM: " + t + " " + off);
-            return a & 0xFFFF;
-        }
+        int r = regOf(t);
+        if (r >= 0) return reg[r];
         if (isInt(t)) return std::stoi(t) & 0xFFFF;
         fail("neznamy adresni operand '" + t + "'");
         return 1;
     }
 
-    // hodnota: cislo, nebo "<segment> <offset>" = adresa (pouziva se pro ukladani pointeru)
     int parseValue() {
         std::string t = next();
-        if (cfg.segmentBase.count(t)) {
-            pos--;
-            return parseAddr();
-        }
         if (isInt(t)) return std::stoi(t);
-        fail("neznama hodnota '" + t + "'");
+        fail("ocekavano cislo, nalezeno '" + t + "'");
+        return 0;
+    }
+
+    // registr nebo cislo
+    int parseRegOrValue() {
+        std::string t = next();
+        int r = regOf(t);
+        if (r >= 0) return reg[r];
+        if (isInt(t)) return std::stoi(t);
+        fail("ocekavan registr nebo cislo, nalezeno '" + t + "'");
         return 0;
     }
 
@@ -153,20 +160,24 @@ private:
 
     void wr(int a, uint8_t v) {
         checkAddr(a);
-        curWrites.push_back({(uint16_t)(a & 0xFFFF), ram[a & 0xFFFF], v});
+        if (bad) return;
+        RamWrite w{(uint16_t)(a & 0xFFFF), ram[a & 0xFFFF], v};
+        curWrites.push_back(w);
+        allWrites.push_back(w);
         ram[a & 0xFFFF] = v;
     }
 
-    void setReg(int r, uint16_t v) {
+    void setReg(int r, int v) {
         if (r == 0) {
             fail("zapis do R0 (je jen pro cteni)");
             return;
         }
-        reg[r] = v;
+        if (bad) return;
+        reg[r] = v & 0xFFFF;
         regsWritten.insert(r);
     }
 
-    bool exec(int line, const std::string &text) {
+    bool exec(int line, const std::string &text, int &nextPc) {
         tok.clear();
         pos = 0;
         curLine = line;
@@ -183,50 +194,54 @@ private:
         if (op == "setReg") {
             int r = parseReg();
             int v = parseValue();
-            if (!bad) setReg(r, v);
+            setReg(r, v);
         } else if (op == "movRegReg" || op == "movRegReg16") {
             int a = parseReg(), b = parseReg();
-            if (!bad) setReg(b, reg[a]);
+            setReg(b, reg[a]);
         } else if (op == "movRamReg") {
             int a = parseAddr(), r = parseReg();
-            if (!bad) setReg(r, rd(a));
+            setReg(r, rd(a));
         } else if (op == "movRamReg16") {
             int a = parseAddr(), r = parseReg();
-            if (!bad) setReg(r, rd(a) | (rd(a + 1) << 8));
+            int v = rd(a) | (rd(a + 1) << 8);
+            setReg(r, v);
         } else if (op == "movRegRam") {
             int r = parseReg(), a = parseAddr();
-            if (!bad) wr(a, reg[r] & 0xFF);
+            wr(a, reg[r] & 0xFF);
         } else if (op == "movRegRam16") {
             int r = parseReg(), a = parseAddr();
-            if (!bad) {
-                wr(a, reg[r] & 0xFF);
-                wr(a + 1, reg[r] >> 8);
-            }
+            uint16_t v = reg[r];
+            wr(a, v & 0xFF);
+            wr(a + 1, v >> 8);
         } else if (op == "movRamRam") {
             int a = parseAddr(), b = parseAddr();
-            if (!bad) wr(b, rd(a));
+            wr(b, rd(a));
         } else if (op == "movRamRam16") {
             int a = parseAddr(), b = parseAddr();
-            if (!bad) {
-                uint8_t lo = rd(a), hi = rd(a + 1);
-                wr(b, lo);
-                wr(b + 1, hi);
-            }
+            uint8_t lo = rd(a), hi = rd(a + 1);
+            wr(b, lo);
+            wr(b + 1, hi);
         } else if (op == "setRam8") {
             int a = parseAddr(), v = parseValue();
-            if (!bad) wr(a, v & 0xFF);
+            wr(a, v & 0xFF);
         } else if (op == "setRam16") {
             int a = parseAddr(), v = parseValue();
-            if (!bad) {
-                wr(a, v & 0xFF);
-                wr(a + 1, (v >> 8) & 0xFF);
-            }
+            wr(a, v & 0xFF);
+            wr(a + 1, (v >> 8) & 0xFF);
         } else if (op == "increment") {
             int r = parseReg();
-            if (!bad) {
-                reg[0] = (reg[r] + 1) & 0xFFFF;
-                regsWritten.insert(0);
-            }
+            setReg(r, reg[r] + 1);
+        } else if (op == "add8" || op == "rm8") {
+            int a = parseReg();
+            int b = parseRegOrValue();
+            int dst = a;
+            if (pos < tok.size()) dst = parseReg();
+            int v = op == "add8" ? reg[a] + b : reg[a] - b;
+            setReg(dst, v);
+        } else if (op == "jump") {
+            nextPc = parseValue();
+        } else if (op == "jumpReg") {
+            nextPc = reg[parseReg()];
         } else {
             fail("instrukce '" + op + "' neni v simulatoru (zatim) podporovana");
         }
