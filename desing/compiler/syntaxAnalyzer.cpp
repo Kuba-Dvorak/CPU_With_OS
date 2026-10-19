@@ -2,6 +2,7 @@
 #include <cmath>
 #include <vector>
 #include <string>
+#include <variant>
 
 
 enum class nodeTypes {
@@ -42,14 +43,14 @@ enum class operators {
 };
 
 
-void callTypeConstructor() {
+struct basicNode;
 
-}
+struct typeConstructor;
+
+struct functionConstructor;
 
 
-void callFunctionConstructor() {
-
-}
+using allThings = std::variant<basicNode, typeConstructor, functionConstructor>;
 
 
 struct basicNode {
@@ -76,7 +77,7 @@ struct basicNode {
     }
     
     void evaluateFn() {
-        callFunctionConstructor();
+
     }
 
     bool createBinary(fullCompiledCode &code, segmentManager &segMan) {
@@ -122,3 +123,17 @@ struct basicNode {
 };
 
 
+struct typeConstructor {
+    typee* forType;
+    std::vector<allThings> constructing;
+
+
+    void construct(fullCompiledCode &code) {
+
+    }
+};
+
+
+struct functionConstructor {
+
+};

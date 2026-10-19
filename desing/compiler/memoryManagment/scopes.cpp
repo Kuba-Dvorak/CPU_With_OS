@@ -87,6 +87,7 @@ struct segmentManager {
         code.addInstruction(asmSyntax.rmReg + asmSyntax.regStackPointer
             + std::to_string(curScopes.back().curPos + myCache.curSize - lastFunqOffset.back()) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
+        myCache.curSize -= lastFunqOffset.back();
         lastFunqOffset.pop_back();
     }
 
