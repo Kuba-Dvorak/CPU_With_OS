@@ -136,7 +136,7 @@ struct variable {
         this->isRef = isRef;
     }
 
-    void call(std::vector<std::string> &keysAfter, fullCompiledCode &code, place &whereTo) {
+    void call(std::vector<std::string> &keysAfter, fullCompiledCode &code, place &whereTo, bool pointingMode) {
         typePasser passerr = {isRef, localPointer0, inRegOposite(whereTo.regLoc)};
         if (isRef && !keysAfter.empty()) {
             code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(localPointer0) + asmSyntax.regStackOper);
@@ -149,11 +149,12 @@ struct variable {
             //error, keysAfter jsou spatne
             return;
         }
-        copyFromTo({myOffset.lastSize, myOffset.localPointer, myOffset.isRef, myOffset.inReg, inRegOposite(whereTo.regLoc)}, whereTo, code);
+        copyFromTo({myOffset.lastSize, myOffset.localPointer, myOffset.isRef, myOffset.inReg,
+            inRegOposite(whereTo.regLoc)}, whereTo, code, pointingMode);
     }
 
 
-    void set(std::vector<std::string> &keysAfter, fullCompiledCode &code, place &whereFrom) {
+    void set(std::vector<std::string> &keysAfter, fullCompiledCode &code, place &whereFrom, bool pointingMode) {
         typePasser passerr = {isRef, localPointer0, inRegOposite(whereFrom.regLoc)};
         if (isRef && !keysAfter.empty()) {
             code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(localPointer0) + asmSyntax.regStackOper);
@@ -166,7 +167,8 @@ struct variable {
             //error, keysAfter jsou spatne
             return;
         }
-        copyFromTo(whereFrom, {myOffset.lastSize, myOffset.localPointer, myOffset.isRef, myOffset.inReg, inRegOposite(whereFrom.regLoc)}, code);
+        copyFromTo(whereFrom, {myOffset.lastSize, myOffset.localPointer, myOffset.isRef,
+            myOffset.inReg, inRegOposite(whereFrom.regLoc)}, code, pointingMode);
     }
 
     int getSize() {
