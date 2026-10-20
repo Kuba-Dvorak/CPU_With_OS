@@ -51,7 +51,7 @@ struct basicFunction {
 
     //vola se AZ PO FUNKCI ZE SEGMENTU, TOTO UZ JE V LOKALNI PROMENE SETUP
     bool getCalled(fullCompiledCode &code) {
-        if (setRamLocal(code.currentLine + 3, outputType->myTypee->size, 2, code)) {
+        if (setRamLocal(code.currentLine + 4, outputType->myTypee->size, 2, code)) {
             code.addInstruction(asmSyntax.setReg + asmSyntax.reg5 + std::to_string(jumpToFunction));
             code.addInstruction(asmSyntax.jumpFromReg + asmSyntax.reg5);
             return true;
