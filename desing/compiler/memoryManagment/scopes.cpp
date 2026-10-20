@@ -56,27 +56,13 @@ struct segmentManager {
     cache myCache;
     std::vector<int> lastFunqOffset = {};
 
-    //in vars jsou ty co tam posilame do toho, ty z funkce jsou ty funqVars
-    place callDiffFunq(fullCompiledCode &code, variable* output, std::vector<place> &inVars,
-        std::vector<variable*> const &funqVars, int jumpSize) {
-        if (funqVars.size() != inVars.size()) {
-            //chyba, nespravny pocet argumentu na vstupu funkce
-            return {-1, -1, false, false, inReg::reg1};
-        }
-        int absSize = output->getSize() + jumpSize;
-        int placeBack = reqFreeSub(output->getSize() + jumpSize);
-
-        for (int i = 0; i < inVars.size(); i++) {
-            int itsSize = funqVars[i]->getSize();
-            int placeToPut = reqFreeSub(itsSize);
-            place location = {}; // volani BT
-        }
-
+    //posilame pouze jumpBy a verime binarnimu stromu ze rezervoval spravne a spravne vyplnil veci
+    //nasledovne musime nacist reqFreeSub o velikosti toho outputu
+    void callDiffFunq(fullCompiledCode &code, int jumpBy) {
         code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer
-            + std::to_string(reqFreeSub(0) - absSize) + asmSyntax.regStackOper);
+            + std::to_string(reqFreeSub(0) - jumpBy) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
-        lastFunqOffset.push_back(absSize);
-        return {output->getSize(), placeBack, output->isRef, false};
+        lastFunqOffset.push_back(jumpBy);
     }
 
     //volat hned po ukonceni funkce !!!

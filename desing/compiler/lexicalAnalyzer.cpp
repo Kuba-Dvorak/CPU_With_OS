@@ -27,7 +27,7 @@ std::string loadName(std::string &lineCode, int startPosition) {
 }
 
 
-//zacatek konstrukce typu: typeConstrStart "["
+//zacatek konstrukce typu: typeConstrStart "[" nebo konec typu "]"
 goodConstructStart findConstructStart(std::string &lineCode, int startPosition) {
 
 }
