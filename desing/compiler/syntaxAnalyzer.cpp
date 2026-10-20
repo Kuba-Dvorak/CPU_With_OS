@@ -1,56 +1,15 @@
-#include "./memoryManagment/functions.cpp"
+
+#include "./lexicalAnalyzer.cpp"
 #include <cmath>
 #include <vector>
 #include <string>
 #include <variant>
 
 
-enum class nodeTypes {
-    notWorking = -1,
-    aritmo = 1,
-    number = 2,
-    variable = 3,
-    function = 4
-};
-
-
-enum class singleOperator {
-    notOper = 1,
-    isPointer = 2
-};
-
-
-struct varPairer {
-    variable* var;
-    std::vector<std::string> varKeys;
-    std::vector<singleOperator> whatToDoAfter = {};
-};
-
-
-enum class operators {
-    plus = 1,
-    remove = 2,
-    multiply = 3,
-    divade = 4,
-    andOperator = 6,
-    orOperator = 7,
-    equal = 9,
-    bigger = 10,
-    lesser = 11,
-    ebig = 12,
-    lbig = 13,
-    notEqual = 14
-};
-
-
 struct basicNode;
 
-struct typeConstructor;
 
 struct functionConstructor;
-
-
-using allThings = std::variant<basicNode, typeConstructor, functionConstructor>;
 
 
 struct basicNode {
@@ -123,17 +82,36 @@ struct basicNode {
 };
 
 
-struct typeConstructor {
-    typee* forType;
-    std::vector<allThings> constructing;
-
-
-    void construct(fullCompiledCode &code) {
-
-    }
-};
-
-
 struct functionConstructor {
 
 };
+
+
+basicNode parseBT(place putTo, int textStartPos, std::string &oneLine) {
+
+}
+
+
+void createParsedSegment(place putTo, typee* typePlace, bool putToIsOnEnd, int textStartPos, std::string &oneLine, fullCompiledCode &code);
+
+
+//konci na [
+void parseTypeConstuctor(place putTo, typee* typePlace, bool putToIsOnEnd) {
+    for (int i = 0; i <= typePlace->params.size(); i++) {
+
+    }
+}
+
+
+//konci na ,
+//nic jako typeConstructor neexistuje, vse se resi v tomhle if v ctrStr.exists
+void createParsedSegment(place putTo, typee* typePlace, bool putToIsOnEnd, int textStartPos, std::string &oneLine, fullCompiledCode &code) {
+    //nejdriv rozdeleni bintree/typeConstructor
+    //pokud plati putToIsOnEnd tak muzeme stavet od putTo dal, a nemusime vlastne skoro vubec kopirovat navic
+
+    goodConstructStart ctrStr = findConstructStart(oneLine, textStartPos);
+    if (ctrStr.exists) {
+        parseTypeConstuctor(putTo, typePlace, putToIsOnEnd);
+    }
+}
+

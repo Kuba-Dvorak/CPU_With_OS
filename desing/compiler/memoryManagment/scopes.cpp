@@ -10,7 +10,6 @@
 #include "./variables.cpp"
 
 
-
 struct codeScope {
     int curPos = 0;
     bool conditioned = false;

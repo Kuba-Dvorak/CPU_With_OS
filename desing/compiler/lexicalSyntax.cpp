@@ -1,3 +1,4 @@
+#include "./memoryManagment/functions.cpp"
 #include <iostream>
 #include <cmath>
 #include <vector>
@@ -32,6 +33,7 @@ struct syntaxDefiners {
     std::string returnSignature = "return";
     std::string typeSignature = "type"; //deklarace typu
     std::string functionSignature = "function"; //deklarace funkce
+    std::string callFunq = "call";
 };
 
 
@@ -59,6 +61,93 @@ struct syntaxForBT {
                                 //ve funkci funguje trochu jinak, vlastne ukoncuje
 
     std::string keyingSymbol = "."; //keys pro nacitani klicu z typu, tohle udela ten dlouhy vector stringu a to prvni je jmeno varu ktery ho vytahne
+
+    //brackets:
+    std::string normalBracketStart = "(";
+    std::string normalBracketEnd = ")";
+    std::string typeConstrStart = "[";
+    std::string typeConstrEnd = "]";
+    std::string functionCallStart = "<";
+    std::string functionCallEnd = ">";
 };
 
 
+enum class singleOperator {
+    notOper = 1,
+    isPointer = 2
+};
+
+
+enum class nodeTypes {
+    notWorking = -1,
+    aritmo = 1,
+    number = 2,
+    variable = 3,
+    function = 4
+};
+
+
+enum class operators {
+    plus = 1,
+    remove = 2,
+    multiply = 3,
+    divade = 4,
+    andOperator = 6,
+    orOperator = 7,
+    equal = 9,
+    bigger = 10,
+    lesser = 11,
+    ebig = 12,
+    lbig = 13,
+    notEqual = 14
+};
+
+
+
+struct goodConstructStart {
+    int position;
+    bool exists;
+};
+
+
+struct goodVar {
+    variable* var;
+    std::vector<std::string> varKeys;
+    std::vector<singleOperator> whatToDoAfter = {};
+    int position;
+    bool exists;
+};
+
+
+struct goodFunction {
+    basicFunction* func;
+    int position; //pozice na zacatek zavorek
+    bool exists;
+};
+
+
+struct goodNumber {
+    int value;
+    int position;
+    bool exists;
+};
+
+
+struct goodBracket {
+    std::vector<singleOperator> whatToDoAfter = {};
+    int position;
+    bool exists;
+};
+
+
+struct goodOperator {
+    operators op;
+    int position;
+    bool exists;
+};
+
+
+struct goodSeparator {
+    int position;
+    bool exists;
+};
