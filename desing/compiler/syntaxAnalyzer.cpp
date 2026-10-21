@@ -96,17 +96,14 @@ struct basicNode {
         }
 
         if (myArType == nodeTypes::number) {
-
             return evaluateNumber(code, segMan);
         }
 
         if (myArType == nodeTypes::variable) {
-
             return evaluateVar(code, segMan);
         }
 
         if (myArType == nodeTypes::function) {
-
             return evaluateFn(code, segMan, oneLine);
         }
 
