@@ -92,26 +92,29 @@ basicNode parseBT(place putTo, int textStartPos, std::string &oneLine) {
 }
 
 
-void createParsedSegment(place putTo, typee* typePlace, bool putToIsOnEnd, int textStartPos, std::string &oneLine, fullCompiledCode &code);
-
-
-//konci na [
-void parseTypeConstuctor(place putTo, typee* typePlace, bool putToIsOnEnd) {
-    for (int i = 0; i <= typePlace->params.size(); i++) {
-
-    }
-}
-
-
 //konci na ,
 //nic jako typeConstructor neexistuje, vse se resi v tomhle if v ctrStr.exists
-void createParsedSegment(place putTo, typee* typePlace, bool putToIsOnEnd, int textStartPos, std::string &oneLine, fullCompiledCode &code) {
+void createParsedSegment(place putTo, typee* typePlace, bool putToIsOnEnd, int &textStartPos, std::string &oneLine, fullCompiledCode &code) {
     //nejdriv rozdeleni bintree/typeConstructor
     //pokud plati putToIsOnEnd tak muzeme stavet od putTo dal, a nemusime vlastne skoro vubec kopirovat navic
 
     goodConstructStart ctrStr = findConstructStart(oneLine, textStartPos);
     if (ctrStr.exists) {
-        parseTypeConstuctor(putTo, typePlace, putToIsOnEnd);
+
+        if (putTo.isRef) {
+
+        }
+
+        textStartPos = ctrStr.position;
+        int curIncPos = 0;
+        for (int i = 0; i <= typePlace->params.size(); i++) {
+            createParsedSegment();
+            //clovek muze ukoncit konstruktor kdy chce
+            goodConstructStart ctrEnd = findConstructStart(oneLine, textStartPos);
+            if (ctrEnd.exists) {
+                break;
+            }
+        }
     }
 }
 
