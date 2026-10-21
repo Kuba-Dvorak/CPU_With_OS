@@ -72,6 +72,14 @@ struct basicFunction {
         code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + asmSyntax.reg5);
         code.addInstruction(asmSyntax.jumpFromReg + asmSyntax.reg5);
     }
+
+    int getInputsSize() {
+        int absSize = 0;
+        for (int i = 0; i < inputsInner.size(); i++) {
+            absSize += inputsInner[i]->getSize();
+        }
+        return absSize;
+    }
 };
 
 
