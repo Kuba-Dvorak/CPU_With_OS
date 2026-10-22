@@ -57,7 +57,7 @@ struct place {
         }
 
         code.addInstruction(asmSyntax.setReg + asmSyntax.regStackOper + std::to_string(pointer));
-        code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + asmSyntax.regStackOper + inRegToString(desiredReg));
+        code.addInstruction(asmSyntax.addReg16 + asmSyntax.regStackPointer + asmSyntax.regStackOper + inRegToString(desiredReg));
     }
 };
 
@@ -165,7 +165,7 @@ bool setRamLocal(int number, int localPos, int size, fullCompiledCode &code) {
         return false;
     }
     for (int i = 0; i < size; i++) {
-        code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(localPos + i) + asmSyntax.regStackOper);
+        code.addInstruction(asmSyntax.addReg16 + asmSyntax.regStackPointer + std::to_string(localPos + i) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.setRam8 + asmSyntax.regStackOper + std::to_string((number >> (i*8)) & 0xFF));
     }
     return true;

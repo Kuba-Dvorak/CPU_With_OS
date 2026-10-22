@@ -68,7 +68,7 @@ struct basicFunction {
         std::vector<std::string> nothingKeys = {};
         //outputType muze byt referenci, ale pokud tomu tak je, tak funkce returnuje ten pointer a nechceme zmenit to na co ukazuje
         outputType->set(nothingKeys, code, thingToReturn, false);
-        code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(outputType->getSize()) + asmSyntax.regStackOper);
+        code.addInstruction(asmSyntax.addReg16 + asmSyntax.regStackPointer + std::to_string(outputType->getSize()) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + asmSyntax.reg5);
         code.addInstruction(asmSyntax.jumpFromReg + asmSyntax.reg5);
     }

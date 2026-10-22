@@ -24,7 +24,9 @@ struct basicSyntax {
     //vstup z LC do LSkip je negovany
 
     // RAM adresa 0 = vzit z registru 1
-    std::string addReg = " add8 ";// add8 works like this: var1 = reg code, var2 = adding number, if the reg code is 5, similary for var3 and var4
+    std::string addReg16 = " addReg16 ";// add8 works like this: var1 = reg code, var2 = adding number, if the reg code is 5, similary for var3 and var4
+    std::string addReg8 = " addReg8 ";
+    std::string multiply8 = " mut8 ";//nasobeni 2 low casti registru na vytvoreni 1 16bitoveho cisla
     std::string rmReg = " rm8 ";
     std::string addRam = " addRam ";
     std::string incrementReg = " increment ";

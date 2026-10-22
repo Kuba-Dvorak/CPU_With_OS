@@ -63,7 +63,7 @@ struct typee {
                 if (pass.curentlyInOper) {
                     code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + inRegToString(pass.placeTo));
                 }
-                code.addInstruction(asmSyntax.addReg + inRegToString(pass.placeTo) + std::to_string(pass.curPointer));
+                code.addInstruction(asmSyntax.addReg16 + inRegToString(pass.placeTo) + std::to_string(pass.curPointer));
                 return {-1, true, pass.isThisRef, returnSize};
             }
             return {pass.curPointer, false, pass.isThisRef, returnSize};
@@ -88,7 +88,7 @@ struct typee {
                 location2 = asmSyntax.regStackOper;
             }
             if (pass.isThisRef && !keysAfter.empty()) {
-                code.addInstruction(asmSyntax.addReg + location + std::to_string(pass.curPointer));
+                code.addInstruction(asmSyntax.addReg16 + location + std::to_string(pass.curPointer));
                 pass.curPointer = 0;
                 code.addInstruction(asmSyntax.movRamReg16 + location + location2);
                 pass.curentlyInOper = !pass.curentlyInOper;
@@ -97,7 +97,7 @@ struct typee {
         }
 
         if (pass.isThisRef && !keysAfter.empty()) {
-            code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(pass.curPointer) + asmSyntax.regStackOper);
+            code.addInstruction(asmSyntax.addReg16 + asmSyntax.regStackPointer + std::to_string(pass.curPointer) + asmSyntax.regStackOper);
             code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + inRegToString(pass.placeTo));
             pass.curPointer = 0;
             pass.curentlyInOper = false;
@@ -139,7 +139,7 @@ struct variable {
     void call(std::vector<std::string> &keysAfter, fullCompiledCode &code, place &whereTo, bool pointingMode) {
         typePasser passerr = {isRef, localPointer0, inRegOposite(whereTo.regLoc)};
         if (isRef && !keysAfter.empty()) {
-            code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(localPointer0) + asmSyntax.regStackOper);
+            code.addInstruction(asmSyntax.addReg16 + asmSyntax.regStackPointer + std::to_string(localPointer0) + asmSyntax.regStackOper);
             code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + inRegToString(inRegOposite(whereTo.regLoc)));
             passerr.curPointer = 0;
             passerr.alreadyInReg = true;
@@ -157,7 +157,7 @@ struct variable {
     void set(std::vector<std::string> &keysAfter, fullCompiledCode &code, place &whereFrom, bool pointingMode) {
         typePasser passerr = {isRef, localPointer0, inRegOposite(whereFrom.regLoc)};
         if (isRef && !keysAfter.empty()) {
-            code.addInstruction(asmSyntax.addReg + asmSyntax.regStackPointer + std::to_string(localPointer0) + asmSyntax.regStackOper);
+            code.addInstruction(asmSyntax.addReg16 + asmSyntax.regStackPointer + std::to_string(localPointer0) + asmSyntax.regStackOper);
             code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + inRegToString(inRegOposite(whereFrom.regLoc)));
             passerr.curPointer = 0;
             passerr.alreadyInReg = true;
