@@ -14,102 +14,79 @@ void transferAddr(int locPointer, fullCompiledCode &code) {
 //mistoA a mistoB uz nejsou v registru (definitivne)
 void addPlaces(place numA, place numB, place placeTo, fullCompiledCode &code) {
     //musime to brat pojednom (pro optimalizaci po 2 bajtech a pak scitat
+    std::string movCur = asmSyntax.movRamReg16;
+    std::string movCurBack = asmSyntax.movRegRam16;
 
-    if (placeTo.size <= (std::min(numB.size, numA.size))) {
-        bool oddSize = false;
-        if ((placeTo.size % 2) != 0) {
-            oddSize = true;
+    int increaser = 2;
+    bool movingMode = false;
+    int movingPointer = 0;
+
+    while (true) {
+
+        //sudy nebo lichy
+        if (placeTo.size == 1 || numA.size == 1 || numB.size == 1) {
+            increaser = 1;
+            std::string movCur = asmSyntax.movRamReg;
+            std::string movCurBack = asmSyntax.movRegRam;
         }
 
-        for (int i = 0; i < placeTo.size; i++) {
-            if (oddSize && ((placeTo.size - i) == 1)) {
-                break;
-            }
-            transferAddr(numA.pointer, code);
-            code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + asmSyntax.reg1);
-            transferAddr(numB.pointer, code);
-            code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + asmSyntax.reg2);
-            code.addInstruction(asmSyntax.addReg + asmSyntax.reg1 + asmSyntax.reg2 + asmSyntax.reg5);
-            transferAddr(placeTo.pointer, code);
-            code.addInstruction(asmSyntax.movRegRam16 + asmSyntax.reg5 + asmSyntax.regStackOper);
-            code.addInstruction(asmSyntax.movRegReg + asmSyntax.latchALUCarryO + asmSyntax.latchALUCarryI);
-            placeTo.pointer += 2;
-            numA.pointer += 2;
-            numB.pointer += 2;
+        else {
+            std::string movCur = asmSyntax.movRamReg16;
+            std::string movCurBack = asmSyntax.movRegRam16;
+            int increaser = 2;
         }
 
-        if (oddSize) {
-            transferAddr(numA.pointer, code);
-            code.addInstruction(asmSyntax.movRamReg + asmSyntax.regStackOper + asmSyntax.reg1);
-            transferAddr(numB.pointer, code);
-            code.addInstruction(asmSyntax.movRamReg + asmSyntax.regStackOper + asmSyntax.reg2);
-            code.addInstruction(asmSyntax.addReg + asmSyntax.reg1 + asmSyntax.reg2 + asmSyntax.reg5);
-            transferAddr(placeTo.pointer, code);
-            code.addInstruction(asmSyntax.movRegRam + asmSyntax.reg5 + asmSyntax.regStackOper);
-            code.addInstruction(asmSyntax.movRegReg + asmSyntax.latchALUCarryO + asmSyntax.latchALUCarryI);
-            placeTo.pointer += 1;
-            numA.pointer += 1;
-            numB.pointer += 1;
+        if (numA.size <= 0 && numB.size <= 0) {
+            break;
         }
 
-        return;
-    }
-
-    if (placeTo.size <= (std::max(numB.size, numA.size))) {
-
-        if (numA.size > numB.size) {
-            bool oddSize = false;
-            if ((numB.size % 2) != 0) {
-                oddSize = true;
-            }
-
-            for (int i = 0; i < numB.size; i++) {
-                if (oddSize && ((numB.size - i) == 1)) {
-                    break;
-                }
-                transferAddr(numA.pointer, code);
-                code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + asmSyntax.reg1);
-                transferAddr(numB.pointer, code);
-                code.addInstruction(asmSyntax.movRamReg16 + asmSyntax.regStackOper + asmSyntax.reg2);
-                code.addInstruction(asmSyntax.addReg + asmSyntax.reg1 + asmSyntax.reg2 + asmSyntax.reg5);
-                transferAddr(placeTo.pointer, code);
-                code.addInstruction(asmSyntax.movRegRam16 + asmSyntax.reg5 + asmSyntax.regStackOper);
-                code.addInstruction(asmSyntax.movRegReg + asmSyntax.latchALUCarryO + asmSyntax.latchALUCarryI);
-                placeTo.pointer += 2;
-                numA.pointer += 2;
-                numB.pointer += 2;
-            }
-
-            if (oddSize) {
-                transferAddr(numA.pointer, code);
-                code.addInstruction(asmSyntax.movRamReg + asmSyntax.regStackOper + asmSyntax.reg1);
-                transferAddr(numB.pointer, code);
-                code.addInstruction(asmSyntax.movRamReg + asmSyntax.regStackOper + asmSyntax.reg2);
-                code.addInstruction(asmSyntax.addReg + asmSyntax.reg1 + asmSyntax.reg2 + asmSyntax.reg5);
-                transferAddr(placeTo.pointer, code);
-                code.addInstruction(asmSyntax.movRegRam + asmSyntax.reg5 + asmSyntax.regStackOper);
-                code.addInstruction(asmSyntax.movRegReg + asmSyntax.latchALUCarryO + asmSyntax.latchALUCarryI);
-                placeTo.pointer += 1;
-                numA.pointer += 1;
-                numB.pointer += 1;
-            }
-            //after that just moving
-
+        if (placeTo.size <= 0) {
             return;
         }
 
-        //proste obracene
-        return;
-    }
 
-    if (placeTo.size > (std::max(numB.size, numA.size))) {
-        if (numA.size > numB.size) {
-
-            return;
+        if (numA.size <= 0) {
+            movingMode = true;
+            movingPointer = numA.pointer;
         }
 
-        return;
+        if (numB.size <= 0) {
+            movingMode = true;
+            movingPointer = numB.pointer;
+        }
+
+
+        if (movingMode) {
+            transferAddr(movingPointer, code);
+            code.addInstruction(movCur + asmSyntax.regStackOper + asmSyntax.reg1);
+            code.addInstruction(asmSyntax.addReg + asmSyntax.reg1 + asmSyntax.regNone + asmSyntax.reg5);
+            transferAddr(placeTo.pointer, code);
+            code.addInstruction(movCurBack + asmSyntax.reg5 + asmSyntax.regStackOper);
+            code.addInstruction(asmSyntax.movRegReg + asmSyntax.latchALUCarryO + asmSyntax.latchALUCarryI);
+        }
+
+        else {
+            transferAddr(numA.pointer, code);
+            code.addInstruction(movCur + asmSyntax.regStackOper + asmSyntax.reg1);
+            transferAddr(numB.pointer, code);
+            code.addInstruction(movCur + asmSyntax.regStackOper + asmSyntax.reg2);
+            code.addInstruction(asmSyntax.addReg + asmSyntax.reg1 + asmSyntax.reg2 + asmSyntax.reg5);
+            transferAddr(placeTo.pointer, code);
+            code.addInstruction(movCurBack + asmSyntax.reg5 + asmSyntax.regStackOper);
+            code.addInstruction(asmSyntax.movRegReg + asmSyntax.latchALUCarryO + asmSyntax.latchALUCarryI);
+        }
+
+        placeTo.pointer += increaser;
+        numA.pointer += increaser;
+        numB.pointer += increaser;
+        placeTo.size -= increaser;
+        numA.size -= increaser;
+        numB.size -= increaser;
     }
+
+    //dat increment
+    transferAddr(placeTo.pointer, code);
+    code.addInstruction(movCurBack + asmSyntax.latchALUCarryI + asmSyntax.regStackOper);
 }
 
 

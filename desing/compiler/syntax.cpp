@@ -14,6 +14,7 @@ struct basicSyntax {
     std::string regStackPointer = " R3 "; // registr kde je stack pointer
     std::string regStackOper = " R4 "; // registr kde se uklada vysledek stackPointeru
     std::string reg5 = " R5 "; // dalsi odkladaci registr
+    std::string regNone = " RNone ";//pri scitani kdyz chceme pouze podle posledniho incrementu
 
     //latche
     std::string latchALUCarryI = " LACI ";
