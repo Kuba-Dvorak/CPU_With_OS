@@ -14,7 +14,10 @@ struct basicSyntax {
     std::string regStackPointer = " R3 "; // registr kde je stack pointer
     std::string regStackOper = " R4 "; // registr kde se uklada vysledek stackPointeru
     std::string reg5 = " R5 "; // dalsi odkladaci registr
-    std::string regNone = " RNone ";//pri scitani kdyz chceme pouze podle posledniho incrementu
+    std::string reg6 = " R6 "; // dalsi odkladaci registr
+    std::string regNone = " RNone "; //pri scitani kdyz chceme pouze podle posledniho incrementu
+    std::string signReg1 = " signReg1 "; //dalsi datovy reg, pojmenovani podle vyuziti v kompilatoru
+    std::string signReg2 = " signReg2 ";
 
     //latche
     std::string latchALUCarryI = " LACI ";
@@ -26,8 +29,13 @@ struct basicSyntax {
     // RAM adresa 0 = vzit z registru 1
     std::string addReg16 = " addReg16 ";// add8 works like this: var1 = reg code, var2 = adding number, if the reg code is 5, similary for var3 and var4
     std::string addReg8 = " addReg8 ";
+    std::string addRegNoCarry = " addNoC "; //pouzije scitacku s zablokovanymi carryIn a carryOut, 16b
     std::string multiply8 = " mut8 ";//nasobeni 2 low casti registru na vytvoreni 1 16bitoveho cisla
+    std::string negate8 = " neg8 ";
+    std::string negate16 = " neg16 ";//zneguje cislo
     std::string rmReg = " rm8 ";
+    std::string setBySign = " setBySign8 "; //rychla operace, ktera se podiva na nejvyssi bit daneho registru a pak setne cilovy registr na 1/0 podle tohodle
+    std::string setBySign16 = " setBySign16 ";
     std::string addRam = " addRam ";
     std::string incrementReg = " increment ";
     std::string movRegRam = " movRegRam ";

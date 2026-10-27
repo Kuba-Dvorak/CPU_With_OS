@@ -59,7 +59,7 @@ struct segmentManager {
     //posilame pouze jumpBy a verime binarnimu stromu ze rezervoval spravne a spravne vyplnil veci
     //nasledovne musime nacist reqFreeSub o velikosti toho outputu
     void callDiffFunq(fullCompiledCode &code, int jumpBy) {
-        code.addInstruction(asmSyntax.addReg16 + asmSyntax.regStackPointer
+        code.addInstruction(asmSyntax.addRegNoCarry + asmSyntax.regStackPointer
             + std::to_string(reqFreeSub(0) - jumpBy) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
         lastFunqOffset.push_back(jumpBy);
@@ -141,7 +141,7 @@ struct segmentManager {
             curScopes.back().startingJumpIndex = code.currentLine;
             place resultLocation = {}; //tady bude muset byt result z BT ktery je definovat u te kondice
             //taky protoze je to od BT a je to od cache, tak to je v RAM (v cachi)
-            code.addInstruction(asmSyntax.addReg16 + asmSyntax.regStackPointer
+            code.addInstruction(asmSyntax.addRegNoCarry + asmSyntax.regStackPointer
                 + std::to_string(resultLocation.pointer) + asmSyntax.regStackOper);
             code.addInstruction(asmSyntax.movRamReg + asmSyntax.regStackOper + asmSyntax.latchCompare);
             code.addInstruction(asmSyntax.setReg + asmSyntax.skippingLatch + std::to_string(1));

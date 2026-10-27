@@ -22,8 +22,8 @@ struct basicNode {
     int nodeIdCurr = -1;
     int textPosition = -1;
     nodeTypes myArType = nodeTypes::notWorking;
-    bool preparedSpaceIsRef = false;
-    bool negate = false;
+    bool preparedSpaceIsRef = false; // zapne se s $ pred vyrazem (promena / zavorka)
+    bool negate = false; // zapne se s ! pred vyrazem (promena / zavorka)
 
     passerPair myPassePair;
     int wantedNum;
@@ -39,7 +39,7 @@ struct basicNode {
     }
     
     place evaluateNumber(fullCompiledCode &code, segmentManager &segMan) {
-        int sizeOfNum = std::ceil(std::log2f(wantedNum) / 8);
+        int sizeOfNum = (int)std::ceil(std::log2f(wantedNum)) / 8;
         place returnPlace = {sizeOfNum, segMan.reqFreeSub(sizeOfNum), preparedSpaceIsRef, false, inReg::reg1};
         setRamLocal(wantedNum, returnPlace.pointer, returnPlace.size, code);
         return returnPlace;
@@ -127,7 +127,8 @@ basicNode parseBT(int textStartPos, std::string &oneLine) {
 place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStartPos, std::string &oneLine, fullCompiledCode &code) {
     //nejdriv rozdeleni bintree/typeConstructor
     //pokud plati putToIsOnEnd tak muzeme stavet od putTo dal, a nemusime vlastne skoro vubec kopirovat navic
-
+    int takenUpSpace = 0;
+    //do takenUpSpace se NEPOCITA return place
     goodConstructStart ctrStr = findConstructStart(oneLine, textStartPos);
     if (ctrStr.exists) {
         //pro kazdy z typu zavolame zase nasi funkci
@@ -153,7 +154,7 @@ place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStar
     }
     //takze to neni type constructor => binarni strom
 
-
+    scope.myCache.curSize -= takenUpSpace;
 }
 
 
