@@ -57,7 +57,7 @@ struct place {
         }
 
         code.addInstruction(asmSyntax.setReg + asmSyntax.regStackOper + std::to_string(pointer));
-        code.addInstruction(asmSyntax.addReg16 + asmSyntax.regStackPointer + asmSyntax.regStackOper + inRegToString(desiredReg));
+        code.addInstruction(asmSyntax.addRegNoCarry + asmSyntax.regStackPointer + asmSyntax.regStackOper + inRegToString(desiredReg));
     }
 };
 
@@ -152,6 +152,7 @@ bool copyFromTo(place from, place to, fullCompiledCode &code, bool pointingMode)
         copyByTable(varsToTable(from, to), toSize, code, inRegOposite(to.regLoc), to.regLoc, pointingMode);
         return true;
     }
+
     from.turnToGlobal(inReg::reg1, code);
     to.turnToGlobal(inReg::reg2, code);
     copyByTable(varsToTable(from, to), toSize, code, inReg::reg1, inReg::reg2, pointingMode);

@@ -73,8 +73,10 @@ struct syntaxForBT {
 
 
 enum class singleOperator {
-    notOper = 1,
-    isPointer = 2
+    notOperBit = 1,
+    isPointer = 2,
+    notOperByte = 3,
+    noSingleOper = 4
 };
 
 
@@ -94,12 +96,22 @@ enum class operators {
     divade = 4,
     andOperator = 6,
     orOperator = 7,
+    xorOperator = 15,
     equal = 9,
     bigger = 10,
     lesser = 11,
     ebig = 12,
-    lbig = 13,
+    esml = 13,
     notEqual = 14
+};
+
+
+enum class logOperators {
+    andOp = 1,
+    orOp = 2,
+    notByteOp = 3,
+    xorOp = 4,
+    notBitOp = 5
 };
 
 
