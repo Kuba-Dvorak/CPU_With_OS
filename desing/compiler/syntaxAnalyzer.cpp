@@ -4,7 +4,10 @@
 #include <vector>
 #include <string>
 #include <variant>
+#include <oneapi/tbb/partitioner.h>
 
+
+//v tomhle soubore jsem vynechal detekci chyb spatne napsaneho kodu, stejne jako ve zbytku kompilatoru
 
 struct basicNode;
 
@@ -15,22 +18,36 @@ struct functionConstructor;
 void prepareFnInput(int &textStartPos, int inputsFunqStartLoc, basicFunction* funq, std::string &oneLine, fullCompiledCode &code, segmentManager &scope);
 
 
+//co jde chronologicky ve vypoctu driv ma vyssi prioritu: napr: nasobeni ma vyssi level nez scitani
+int operatorToLevel(operators oper) {
+
+}
+
+
 struct basicNode {
     basicNode* parentNode = nullptr;
     basicNode* leftNode = nullptr;
     basicNode* rightNode = nullptr;
-    int nodeIdCurr = -1;
     int textPosition = -1;
     nodeTypes myArType = nodeTypes::notWorking;
+    int nodeID = -1;
 
+    //pro variable
     passerPair myPassePair;
+
+    //pro cislo
     int wantedNum;
 
+    //pro funkci
     basicFunction* funq;
     int textStartPos;
 
+    //pro operaci
     singleOperator singleOper;
     operators oper;
+
+    //pro uz zpracovany place
+    place potPlace;
     
     basicNode* getRoot() {
         if (parentNode == nullptr) {
@@ -171,9 +188,9 @@ struct basicNode {
         return {-2, -1, false, false, inReg::reg1};
     }
 
-    //pred vracenim jeste chybi check a pripadna funkce pro negaci!!!
+
     place createBinary(fullCompiledCode &code, segmentManager &segMan, std::string &oneLine) {
-        if (myArType == nodeTypes::notWorking || textPosition == -1 || nodeIdCurr == -1) {
+        if (myArType == nodeTypes::notWorking || textPosition == -1 || nodeID == -1) {
             return {-2, -1, false, false, inReg::reg1};
         }
 
@@ -220,12 +237,88 @@ struct basicNode {
             return evaluateFn(code, segMan, oneLine);
         }
 
+        if (myArType == nodeTypes::funqPlace) {
+            return potPlace;
+        }
+
         return {-2, -1};
     }
 
 
-    void placeToTree() {
+    void placeToTree(basicNode &operatorNode, basicNode &valueNode, std::deque<basicNode> &nodes, int lastId, int secondLastId,
+        fullCompiledCode &code, segmentManager &segMan, std::string &oneLine) {
 
+        //jedna se o konec listu, nas node se udela ditetem parenta
+        if (myArType != nodeTypes::aritmo) {
+            //jedna se o leve dite
+            if (parentNode->leftNode->nodeID == nodeID) {
+                parentNode->leftNode = &operatorNode;
+                operatorNode.leftNode = this;
+                operatorNode.parentNode = parentNode;
+                operatorNode.rightNode = &valueNode;
+                parentNode = &operatorNode;
+            }
+
+            //jedna se o prave dite
+            else {
+                parentNode->rightNode = &operatorNode;
+                operatorNode.leftNode = this;
+                operatorNode.parentNode = parentNode;
+                operatorNode.rightNode = &valueNode;
+                parentNode = &operatorNode;
+            }
+            return;
+        }
+
+        int thisNodeLevel = operatorToLevel(oper);
+        int newNodeLevel = operatorToLevel(operatorNode.oper);
+        if (newNodeLevel == thisNodeLevel) {
+            return leftNode->placeToTree(operatorNode, valueNode, nodes, nodeID, lastId, code, segMan, oneLine);
+        }
+
+        //jsme v loopu => musime protlacit mezi nas
+        if (secondLastId == nodeID) {
+            //rodic -> stary -> novy
+            if (newNodeLevel > thisNodeLevel) {
+                rightNode->parentNode = &operatorNode;
+                operatorNode.rightNode = rightNode;
+                rightNode = &operatorNode;
+                operatorNode.leftNode = &valueNode;
+            }
+
+            //rodic -> novy -> stary
+            if (newNodeLevel < thisNodeLevel) {
+                //leve dite
+                if (parentNode->leftNode->nodeID == nodeID) {
+                    parentNode->leftNode = &operatorNode;
+                }
+
+                //prave dite
+                else {
+                    parentNode->rightNode = &operatorNode;
+                }
+                operatorNode.leftNode = &valueNode;
+                operatorNode.rightNode = this;
+                parentNode = &operatorNode;
+            }
+            return;
+        }
+
+        if (newNodeLevel > thisNodeLevel) {
+            return rightNode->placeToTree(operatorNode, valueNode, nodes, nodeID, lastId, code, segMan, oneLine);
+        }
+        if (newNodeLevel < thisNodeLevel) {
+            if (parentNode == nullptr) {
+                //toto implikuje ze to ma nizsi level nez root => zkompilujeme tuhle 1 cast a potom delame jako kdyby tohle byla "promena"
+                nodes.push_back({&operatorNode, nullptr, nullptr, textPosition, nodeTypes::funqPlace,
+                                     nodeID, {}, 0, nullptr, 0, singleOperator::noSingleOper, operators::plus,
+                                     createBinary(code, segMan, oneLine)});
+                operatorNode.leftNode = &nodes.back();
+                operatorNode.rightNode = &valueNode;
+                return;
+            }
+            return parentNode->placeToTree(operatorNode, valueNode, nodes, nodeID, lastId, code, segMan, oneLine);
+        }
     }
 };
 
@@ -236,7 +329,7 @@ basicNode parseBT(int textStartPos, std::string &oneLine) {
 
 
 
-//vraci place na kterem je ta vec ulozena
+//vraci place na kterem je ta vec ulozena a uz je vytvorena
 place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStartPos, std::string &oneLine, fullCompiledCode &code) {
     //nejdriv rozdeleni bintree/typeConstructor
     //pokud plati putToIsOnEnd tak muzeme stavet od putTo dal, a nemusime vlastne skoro vubec kopirovat navic
@@ -266,6 +359,8 @@ place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStar
         return {typePlace->size, originalP, false, false, inReg::reg1};
     }
     //takze to neni type constructor => binarni strom
+
+    //TODO: dodelat delani BT
 
     scope.myCache.curSize -= takenUpSpace;
 }

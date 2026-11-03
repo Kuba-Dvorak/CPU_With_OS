@@ -85,7 +85,8 @@ enum class nodeTypes {
     aritmo = 1,
     number = 2,
     variable = 3,
-    function = 4
+    function = 4,
+    funqPlace = 5
 };
 
 

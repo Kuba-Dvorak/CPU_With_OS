@@ -1,4 +1,4 @@
-#include "./memoryManagment/functions.cpp"
+#include "./syntaxAnalyzer.cpp"
 #include <vector>
 #include <string>
 
