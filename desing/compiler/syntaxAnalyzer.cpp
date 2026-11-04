@@ -216,10 +216,15 @@ struct basicNode {
             }
 
             if (singleOper == singleOperator::notOperBit) {
-                logicalOperation(placeReturner, {}, placeReturner, code, logOperators::notBitOp);
+                place placeTo = {1, segMan.reqFreeSub(1), false, false, inReg::reg1};
+                logicalOperation(placeReturner, {}, placeTo, code, logOperators::notBitOp);
+                return placeTo;
             }
+
             if (singleOper == singleOperator::notOperByte) {
-                logicalOperation(placeReturner, {}, placeReturner, code, logOperators::notByteOp);
+                place placeTo = {placeReturner.size, segMan.reqFreeSub(placeReturner.size), false, false, inReg::reg1};
+                logicalOperation(placeReturner, {}, placeTo, code, logOperators::notByteOp);
+                return placeTo;
             }
 
             return {placeReturner.size, placeReturner.pointer, preparedSpaceIsRef, false, inReg::reg1};
@@ -251,6 +256,7 @@ struct basicNode {
         //jedna se o konec listu, nas node se udela ditetem parenta
         if (myArType != nodeTypes::aritmo) {
             //jedna se o leve dite
+            valueNode.parentNode = &operatorNode;
             if (parentNode->leftNode->nodeID == nodeID) {
                 parentNode->leftNode = &operatorNode;
                 operatorNode.leftNode = this;
@@ -272,22 +278,66 @@ struct basicNode {
 
         int thisNodeLevel = operatorToLevel(oper);
         int newNodeLevel = operatorToLevel(operatorNode.oper);
+
+        //novy operator je vzdy dal v textu => chronologicky se musi provest pozdeji => musi byt vys
         if (newNodeLevel == thisNodeLevel) {
-            return leftNode->placeToTree(operatorNode, valueNode, nodes, nodeID, lastId, code, segMan, oneLine);
+            //jedna se o leve dite
+            valueNode.parentNode = &operatorNode;
+            operatorNode.rightNode = &valueNode;
+            if (parentNode == nullptr) {
+                //toto implikuje ze to ma nizsi level nez root => zkompilujeme tuhle 1 cast a potom delame jako kdyby tohle byla "promena"
+                nodes.push_back({&operatorNode, nullptr, nullptr, textPosition, nodeTypes::funqPlace,
+                                     nodeID, {}, 0, nullptr, 0, singleOperator::noSingleOper, operators::plus,
+                                     createBinary(code, segMan, oneLine)});
+                operatorNode.leftNode = &nodes.back();
+                operatorNode.rightNode = &valueNode;
+                return;
+            }
+            if (parentNode->leftNode->nodeID == nodeID) {
+                parentNode->leftNode = &operatorNode;
+                operatorNode.leftNode = this;
+                operatorNode.parentNode = parentNode;
+                operatorNode.rightNode = &valueNode;
+                parentNode = &operatorNode;
+            }
+
+            //jedna se o prave dite
+            else {
+                parentNode->rightNode = &operatorNode;
+                operatorNode.leftNode = this;
+                operatorNode.parentNode = parentNode;
+                operatorNode.rightNode = &valueNode;
+                parentNode = &operatorNode;
+            }
+
+            return;
         }
 
         //jsme v loopu => musime protlacit mezi nas
         if (secondLastId == nodeID) {
             //rodic -> stary -> novy
+            valueNode.parentNode = &operatorNode;
             if (newNodeLevel > thisNodeLevel) {
                 rightNode->parentNode = &operatorNode;
                 operatorNode.rightNode = rightNode;
                 rightNode = &operatorNode;
                 operatorNode.leftNode = &valueNode;
+                operatorNode.parentNode = this;
             }
 
             //rodic -> novy -> stary
             if (newNodeLevel < thisNodeLevel) {
+                //root
+                if (parentNode == nullptr) {
+                    //toto implikuje ze to ma nizsi level nez root => zkompilujeme tuhle 1 cast a potom delame jako kdyby tohle byla "promena"
+                    nodes.push_back({&operatorNode, nullptr, nullptr, textPosition, nodeTypes::funqPlace,
+                                         nodeID, {}, 0, nullptr, 0, singleOperator::noSingleOper, operators::plus,
+                                         createBinary(code, segMan, oneLine)});
+                    operatorNode.leftNode = &nodes.back();
+                    operatorNode.rightNode = &valueNode;
+                    return;
+                }
+
                 //leve dite
                 if (parentNode->leftNode->nodeID == nodeID) {
                     parentNode->leftNode = &operatorNode;
@@ -299,6 +349,7 @@ struct basicNode {
                 }
                 operatorNode.leftNode = &valueNode;
                 operatorNode.rightNode = this;
+                operatorNode.parentNode = parentNode;
                 parentNode = &operatorNode;
             }
             return;
@@ -308,6 +359,7 @@ struct basicNode {
             return rightNode->placeToTree(operatorNode, valueNode, nodes, nodeID, lastId, code, segMan, oneLine);
         }
         if (newNodeLevel < thisNodeLevel) {
+            valueNode.parentNode = &operatorNode;
             if (parentNode == nullptr) {
                 //toto implikuje ze to ma nizsi level nez root => zkompilujeme tuhle 1 cast a potom delame jako kdyby tohle byla "promena"
                 nodes.push_back({&operatorNode, nullptr, nullptr, textPosition, nodeTypes::funqPlace,
