@@ -12,9 +12,6 @@
 struct basicNode;
 
 
-struct functionConstructor;
-
-
 void prepareFnInput(int &textStartPos, int inputsFunqStartLoc, basicFunction* funq, std::string &oneLine, fullCompiledCode &code, segmentManager &scope);
 
 
