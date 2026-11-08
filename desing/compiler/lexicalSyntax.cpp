@@ -160,6 +160,13 @@ struct goodOperator {
 };
 
 
+struct goodSingleOperator {
+    singleOperator op;
+    int position;
+    //kdyz neexistuje tak vraci noSingleOper
+};
+
+
 struct goodSeparator {
     int position;
     bool exists;
