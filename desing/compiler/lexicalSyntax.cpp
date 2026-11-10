@@ -33,7 +33,7 @@ struct syntaxDefiners {
     std::string returnSignature = "return";
     std::string typeSignature = "type"; //deklarace typu
     std::string functionSignature = "function"; //deklarace funkce
-    std::string callFunq = "call";
+    std::string callFunq = "call"; //volani funkce
 };
 
 
@@ -63,7 +63,7 @@ struct syntaxForBT {
     std::string keyingSymbol = "."; //keys pro nacitani klicu z typu, tohle udela ten dlouhy vector stringu a to prvni je jmeno varu ktery ho vytahne
 
     //brackets:
-    std::string normalBracketStart = "(";
+    std::string normalBracketStart = "("; //jako zavorky a na funkce
     std::string normalBracketEnd = ")";
     std::string typeConstrStart = "[";
     std::string typeConstrEnd = "]";
@@ -126,7 +126,6 @@ struct goodConstructStart {
 struct goodVar {
     variable* var;
     std::vector<std::string> varKeys;
-    std::vector<singleOperator> whatToDoAfter = {};
     int position;
     bool exists;
 };

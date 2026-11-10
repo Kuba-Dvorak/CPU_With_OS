@@ -377,7 +377,7 @@ struct basicNode {
 
 //odevzda node s typem funqPlace a potPlacem
 basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan, std::deque<basicNode> &nodes,
-    basicNode &overNode, int nextId, varHandle &vars, functionHandle &funqHandle) {
+    basicNode* overNode, int nextId, varHandle &vars, functionHandle &funqHandle) {
     //nacita vyrazi stylem:  operator, single operator, zavorka, variable / funq / number; priklad:  + !x
     while (true) {
         //nacist operator
@@ -393,6 +393,9 @@ basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code
             textStartPos = opertSingle.position;
         }
 
+        basicNode operatorNode = {nullptr, nullptr, nullptr, opert.position, nodeTypes::aritmo, nextId++, {},
+            0, nullptr, 0, opertSingle.op, opert.op};
+
         //nacist potencialni zavorku
         goodBracket brackt = findBracket(oneLine, textStartPos);
         if (brackt.exists) {
@@ -402,14 +405,15 @@ basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code
             if (noder.myArType == nodeTypes::notWorking) {
                 return {nullptr, nullptr, nullptr, 0, nodeTypes::notWorking};
             }
-            overNode.placeToTree({nullptr, nullptr, nullptr, opert.position, nodeTypes::aritmo, nextId++, {},
-            0, nullptr, 0, opertSingle.op, opert.op},
-                        noder, nodes, -1, -1, code, segMan, oneLine);
+            overNode->placeToTree(operatorNode,noder, nodes, -1, -1, code, segMan, oneLine);
             continue;
         }
 
-        //nacis cislo, var nebo funkci
+        //nacist cislo, var nebo funkci
         //1. var
+        basicNode valueNode;
+        valueNode.nodeID = nextId++;
+        valueNode.textPosition = textStartPos;
         goodVar possibleVar = findVar(oneLine, textStartPos, vars);
         if (!possibleVar.exists) {
             //2. funkce
@@ -417,12 +421,18 @@ basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code
             if (!possibleVar.exists) {
                 //3. cislo
                 goodNumber possibleNumber = findNumber(oneLine, textStartPos);
-
+                valueNode.wantedNum = possibleNumber.value;
+                overNode->placeToTree(operatorNode,valueNode, nodes, -1, -1, code, segMan, oneLine);
                 continue;
             }
-
+            valueNode.funq = possibleFunction.func;
+            valueNode.textStartPos = possibleFunction.position;
+            overNode->placeToTree(operatorNode,valueNode, nodes, -1, -1, code, segMan, oneLine);
             continue;
         }
+        valueNode.myPassePair.var = possibleVar.var;
+        valueNode.myPassePair.keys = possibleVar.varKeys;
+        overNode->placeToTree(operatorNode,valueNode, nodes, -1, -1, code, segMan, oneLine);
     }
 }
 
@@ -436,7 +446,7 @@ place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStar
     //do takenUpSpace se NEPOCITA return place
     goodConstructStart ctrStr = findConstructStart(oneLine, textStartPos);
     if (ctrStr.exists) {
-        //pro kazdy z typu zavolame zase nasi funkci
+        //pro kazdou promenou z typu zavolame zase nasi funkci
         textStartPos = ctrStr.position;
         int curPointer = scope.reqFreeSub(typePlace->size);
         int originalP = curPointer;
@@ -459,19 +469,30 @@ place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStar
     }
     //takze to neni type constructor => binarni strom
 
-    //TODO: dodelat delani BT
+
 
     scope.myCache.curSize -= takenUpSpace;
 }
 
 
 //bereme to tak ze misto pro output a jumpBack uz je zabrane
-void prepareFnInput(int &textStartPos, int inputsFunqStartLoc, basicFunction* funq, std::string &oneLine, fullCompiledCode &code, segmentManager &scope) {
+void prepareFnInput(int &textStartPos, int inputsPointerStart, basicFunction* funq, std::string &oneLine, fullCompiledCode &code, segmentManager &scope) {
     for (int i = 0; i < funq->inputsInner.size(); i++) {
-        place placeTo = {funq->inputsInner[i]->getSize(), inputsFunqStartLoc, funq->inputsInner[i]->isRef, false, inReg::reg1};
-        inputsFunqStartLoc += funq->inputsInner[i]->getSize();
+        place placeTo = {funq->inputsInner[i]->getSize(), inputsPointerStart, funq->inputsInner[i]->isRef, false, inReg::reg1};
+        inputsPointerStart += funq->inputsInner[i]->getSize();
         place artificialPlace = createParsedSegment(funq->inputsInner[i]->myTypee, scope, textStartPos, oneLine, code);
         copyFromTo(artificialPlace, placeTo, code, false);
+        goodSeparator separator = findSeparator(oneLine, textStartPos);
+        if (((i + 1) < funq->inputsInner.size()) || !separator.exists) {
+            break;
+        }
+        textStartPos = separator.position;
     }
+    //hledani ukonceni funkce -> )
+    goodBracket bracket = findBracket(oneLine, textStartPos);
+    if (!bracket.exists) {
+        //chyba v ukonceni funkce
+    }
+    textStartPos = bracket.position;
 }
 
