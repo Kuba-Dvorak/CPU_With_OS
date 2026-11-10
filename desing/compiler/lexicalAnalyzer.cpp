@@ -63,6 +63,11 @@ goodOperator findOperator(std::string &lineCode, int startPosition) {
 }
 
 
+goodSingleOperator findSingleOperator(std::string &lineCode, int startPosition) {
+
+}
+
+
 //separator: nextSign "," pri konstrukci typu / oddeleni argumentu funkce
 goodSeparator findSeparator(std::string &lineCode, int startPosition) {
 

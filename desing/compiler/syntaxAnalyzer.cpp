@@ -247,7 +247,7 @@ struct basicNode {
     }
 
 
-    void placeToTree(basicNode &operatorNode, basicNode &valueNode, std::deque<basicNode> &nodes, int lastId, int secondLastId,
+    void placeToTree(basicNode operatorNode, basicNode valueNode, std::deque<basicNode> &nodes, int lastId, int secondLastId,
         fullCompiledCode &code, segmentManager &segMan, std::string &oneLine) {
 
         //jedna se o konec listu, nas node se udela ditetem parenta
@@ -372,8 +372,55 @@ struct basicNode {
 };
 
 
-basicNode parseBT(int textStartPos, std::string &oneLine) {
+//odevzda node s typem funqPlace a potPlacem
+basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan, std::deque<basicNode> &nodes,
+    basicNode &overNode, int nextId, varHandle &vars, functionHandle &funqHandle) {
+    //nacita vyrazi stylem:  operator, single operator, zavorka, variable / funq / number; priklad:  + !x
+    while (true) {
+        //nacist operator
+        goodOperator opert = findOperator(oneLine, textStartPos);
+        if (!opert.exists) {
+            return {nullptr, nullptr, nullptr, 0, nodeTypes::notWorking};
+        }
+        textStartPos = opert.position;
 
+        //nacist single operator
+        goodSingleOperator opertSingle = findSingleOperator(oneLine, textStartPos);
+        if (opertSingle.op != singleOperator::noSingleOper) {
+            textStartPos = opertSingle.position;
+        }
+
+        //nacist potencialni zavorku
+        goodBracket brackt = findBracket(oneLine, textStartPos);
+        if (brackt.exists) {
+            textStartPos = brackt.position;
+            basicNode noder = parseBT(textStartPos, oneLine, code, segMan, nodes, overNode, nextId, vars, funqHandle);
+
+            if (noder.myArType == nodeTypes::notWorking) {
+                return {nullptr, nullptr, nullptr, 0, nodeTypes::notWorking};
+            }
+            overNode.placeToTree({nullptr, nullptr, nullptr, opert.position, nodeTypes::aritmo, nextId++, {},
+            0, nullptr, 0, opertSingle.op, opert.op},
+                        noder, nodes, -1, -1, code, segMan, oneLine);
+            continue;
+        }
+
+        //nacis cislo, var nebo funkci
+        //1. var
+        goodVar possibleVar = findVar(oneLine, textStartPos, vars);
+        if (!possibleVar.exists) {
+            //2. funkce
+            goodFunction possibleFunction = findFunction(oneLine, textStartPos, funqHandle);
+            if (!possibleVar.exists) {
+                //3. cislo
+                goodNumber possibleNumber = findNumber(oneLine, textStartPos);
+
+                continue;
+            }
+
+            continue;
+        }
+    }
 }
 
 
