@@ -276,7 +276,7 @@ struct basicNode {
         int thisNodeLevel = operatorToLevel(oper);
         int newNodeLevel = operatorToLevel(operatorNode.oper);
 
-        //novy operator je vzdy dal v textu => chronologicky se musi provest pozdeji => musi byt vys
+        //novy operator je vzdy dal v textu => chronologicky se musi provest pozdeji => musi byt vys => prohodime to s timhle
         if (newNodeLevel == thisNodeLevel) {
             //jedna se o leve dite
             valueNode.parentNode = &operatorNode;
