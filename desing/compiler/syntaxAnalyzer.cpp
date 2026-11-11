@@ -343,12 +343,10 @@ struct basicNode {
         if (newNodeLevel < thisNodeLevel) {
             valueNode.parentNode = &operatorNode;
             if (parentNode == nullptr) {
-                //toto implikuje ze to ma nizsi level nez root => zkompilujeme tuhle 1 cast a potom delame jako kdyby tohle byla "promena"
-                nodes.push_back({&operatorNode, nullptr, nullptr, textPosition, nodeTypes::funqPlace,
-                                     nodeID, {}, 0, nullptr, 0, singleOperator::noSingleOper, operators::plus,
-                                     createBinary(code, segMan, oneLine)});
-                operatorNode.leftNode = &nodes.back();
+                //toto implikuje ze to ma nizsi level nez root => dame to nad root a nynejsi root bude vlevo, cislo nove vpravo
+                operatorNode.leftNode = this;
                 operatorNode.rightNode = &valueNode;
+                parentNode = &operatorNode;
                 return;
             }
             return parentNode->placeToTree(operatorNode, valueNode, nodes, nodeID, lastId, code, segMan, oneLine);
@@ -362,28 +360,44 @@ basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code
     std::deque<basicNode> &nodes, int nextId, varHandle &vars, functionHandle &funqHandle) {
     //nejdriv nacte cislo, var, funkci nebo zavorku
 
-    goodVar possibleVar = findVar(oneLine, textStartPos, vars);
-    goodBracket possibleBracket = findBracket(oneLine, textStartPos);
-    goodNumber possibleNumber = findNumber(oneLine, textStartPos);
-    goodFunction possibleFunction = findFunction(oneLine, textStartPos, funqHandle);
-    basicNode* overNode = nullptr;
+    goodVar firstpossibleVar = findVar(oneLine, textStartPos, vars);
+    goodBracket firstpossibleBracket = findBracket(oneLine, textStartPos);
+    goodNumber firstpossibleNumber = findNumber(oneLine, textStartPos);
+    goodFunction firstpossibleFunction = findFunction(oneLine, textStartPos, funqHandle);
+    nodes.push_back({});
+    basicNode* overNode = &nodes.back();
+
     //1. var
-    if (possibleVar.exists) {
-        nodes.push_back({});
-        nodes.back().myPassePair.keys = possibleVar.varKeys;
+    if (firstpossibleVar.exists) {
+        nodes.back().myPassePair.keys = firstpossibleVar.varKeys;
+        nodes.back().myPassePair.var = firstpossibleVar.var;
+        nodes.back().myArType = nodeTypes::variable;
+        textStartPos = firstpossibleVar.position;
     }
     //2. funkce
-    else if (possibleFunction.exists) {
-
+    else if (firstpossibleFunction.exists) {
+        nodes.back().funq = firstpossibleFunction.func;
+        nodes.back().myArType = nodeTypes::function;
+        textStartPos = firstpossibleFunction.position;
     }
     //3. number
-    else if (possibleNumber.exists) {
-
+    else if (firstpossibleNumber.exists) {
+        nodes.back().wantedNum = firstpossibleNumber.value;
+        nodes.back().myArType = nodeTypes::number;
+        textStartPos = firstpossibleNumber.position;
     }
 
-    //chyba zadne cislo, zavorka, funkce nebo variable
-    else if (possibleBracket.exists) {
+    //4. zavorka
+    else if (firstpossibleBracket.exists) {
+        nodes.back().myArType = nodeTypes::funqPlace;
+        basicNode valueNode = parseBT(textStartPos, oneLine, code, segMan, nodes, nextId, vars, funqHandle);
+        nodes.back().potPlace = valueNode.createBinary(code, segMan, oneLine);
+        textStartPos = firstpossibleBracket.position;
+    }
 
+    //5. chyba
+    else {
+        return {nullptr, nullptr};
     }
 
 
@@ -413,13 +427,13 @@ basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code
         if (brackt.exists) {
             textStartPos = brackt.position;
 
-            int bracketId = nodes.size() ;
+            int valueNodeID = nodes.size();
             nodes.push_back(parseBT(textStartPos, oneLine, code, segMan, nodes, nextId, vars, funqHandle));
 
-            if (nodes[bracketId].myArType == nodeTypes::notWorking) {
-                return {nullptr, nullptr, nullptr, 0, nodeTypes::notWorking};
+            if (nodes[valueNodeID].myArType == nodeTypes::notWorking) {
+                return {nullptr, nullptr};
             }
-            overNode->placeToTree(nodes[operId],nodes[bracketId], nodes, -1, -1, code, segMan, oneLine);
+            overNode->placeToTree(nodes[operId],nodes[valueNodeID], nodes, -1, -1, code, segMan, oneLine);
             continue;
         }
 
@@ -453,6 +467,13 @@ basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code
         nodes[valueId].myPassePair.keys = possibleVar.varKeys;
         overNode->placeToTree(nodes[operId],nodes[valueId], nodes, -1, -1, code, segMan, oneLine);
     }
+
+    //nakonec vytvorit binarku z bt segmentu, a pak node s pot placem
+    place potPlace = overNode->getRoot()->createBinary(code, segMan, oneLine);
+    basicNode quickNode;
+    quickNode.potPlace = potPlace;
+    nodes.push_back(quickNode);
+    return nodes.back();
 }
 
 
