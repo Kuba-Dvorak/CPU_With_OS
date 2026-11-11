@@ -456,7 +456,6 @@ place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStar
     }
     //takze to neni type constructor => binarni strom
 
-    //TODO: dodelat delani BT
 
     scope.myCache.curSize -= takenUpSpace;
 }
