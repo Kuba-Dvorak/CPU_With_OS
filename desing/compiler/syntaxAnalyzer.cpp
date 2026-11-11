@@ -247,7 +247,7 @@ struct basicNode {
     }
 
 
-    void placeToTree(basicNode operatorNode, basicNode valueNode, std::deque<basicNode> &nodes, int lastId, int secondLastId,
+    void placeToTree(basicNode &operatorNode, basicNode &valueNode, std::deque<basicNode> &nodes, int lastId, int secondLastId,
         fullCompiledCode &code, segmentManager &segMan, std::string &oneLine) {
 
         //jedna se o konec listu, nas node se udela ditetem parenta
@@ -255,21 +255,20 @@ struct basicNode {
             //jedna se o leve dite
             valueNode.parentNode = &operatorNode;
             if (parentNode->leftNode->nodeID == nodeID) {
-                parentNode->leftNode = &operatorNode;
-                operatorNode.leftNode = this;
+                operatorNode.leftNode = &valueNode;
                 operatorNode.parentNode = parentNode;
-                operatorNode.rightNode = &valueNode;
-                parentNode = &operatorNode;
+                operatorNode.rightNode = this;
+                parentNode->leftNode = &operatorNode;
             }
 
             //jedna se o prave dite
             else {
-                parentNode->rightNode = &operatorNode;
                 operatorNode.leftNode = this;
                 operatorNode.parentNode = parentNode;
                 operatorNode.rightNode = &valueNode;
-                parentNode = &operatorNode;
+                parentNode->rightNode = &operatorNode;
             }
+            parentNode = &operatorNode;
             return;
         }
 
@@ -278,23 +277,20 @@ struct basicNode {
 
         //novy operator je vzdy dal v textu => chronologicky se musi provest pozdeji => musi byt vys => prohodime to s timhle
         if (newNodeLevel == thisNodeLevel) {
-            //jedna se o leve dite
             valueNode.parentNode = &operatorNode;
             operatorNode.rightNode = &valueNode;
+            //jedna se o root
             if (parentNode == nullptr) {
-                //toto implikuje ze to ma nizsi level nez root => zkompilujeme tuhle 1 cast a potom delame jako kdyby tohle byla "promena"
-                nodes.push_back({&operatorNode, nullptr, nullptr, textPosition, nodeTypes::funqPlace,
-                                     nodeID, {}, 0, nullptr, 0, singleOperator::noSingleOper, operators::plus,
-                                     createBinary(code, segMan, oneLine)});
-                operatorNode.leftNode = &nodes.back();
-                operatorNode.rightNode = &valueNode;
+                parentNode = &operatorNode;
+                operatorNode.leftNode = this;
                 return;
             }
+
+            //jedna se o leve dite
             if (parentNode->leftNode->nodeID == nodeID) {
                 parentNode->leftNode = &operatorNode;
                 operatorNode.leftNode = this;
                 operatorNode.parentNode = parentNode;
-                operatorNode.rightNode = &valueNode;
                 parentNode = &operatorNode;
             }
 
@@ -303,7 +299,6 @@ struct basicNode {
                 parentNode->rightNode = &operatorNode;
                 operatorNode.leftNode = this;
                 operatorNode.parentNode = parentNode;
-                operatorNode.rightNode = &valueNode;
                 parentNode = &operatorNode;
             }
 
@@ -312,28 +307,17 @@ struct basicNode {
 
         //jsme v loopu => musime protlacit mezi nas
         if (secondLastId == nodeID) {
-            //rodic -> stary -> novy
-            valueNode.parentNode = &operatorNode;
+            //dite = novy
             if (newNodeLevel > thisNodeLevel) {
-                rightNode->parentNode = &operatorNode;
-                operatorNode.rightNode = rightNode;
-                rightNode = &operatorNode;
-                operatorNode.leftNode = &valueNode;
-                operatorNode.parentNode = this;
+                rightNode->placeToTree(operatorNode, valueNode, nodes, lastId, secondLastId, code, segMan, oneLine);
+                return;
             }
 
-            //rodic -> novy -> stary
+            valueNode.parentNode = &operatorNode;
+
+            //rodic = novy
             if (newNodeLevel < thisNodeLevel) {
-                //root
-                if (parentNode == nullptr) {
-                    //toto implikuje ze to ma nizsi level nez root => zkompilujeme tuhle 1 cast a potom delame jako kdyby tohle byla "promena"
-                    nodes.push_back({&operatorNode, nullptr, nullptr, textPosition, nodeTypes::funqPlace,
-                                         nodeID, {}, 0, nullptr, 0, singleOperator::noSingleOper, operators::plus,
-                                         createBinary(code, segMan, oneLine)});
-                    operatorNode.leftNode = &nodes.back();
-                    operatorNode.rightNode = &valueNode;
-                    return;
-                }
+                //root = k nemu nedojde
 
                 //leve dite
                 if (parentNode->leftNode->nodeID == nodeID) {
@@ -344,8 +328,8 @@ struct basicNode {
                 else {
                     parentNode->rightNode = &operatorNode;
                 }
-                operatorNode.leftNode = &valueNode;
-                operatorNode.rightNode = this;
+                operatorNode.leftNode = this;
+                operatorNode.rightNode = &valueNode;
                 operatorNode.parentNode = parentNode;
                 parentNode = &operatorNode;
             }
@@ -355,6 +339,7 @@ struct basicNode {
         if (newNodeLevel > thisNodeLevel) {
             return rightNode->placeToTree(operatorNode, valueNode, nodes, nodeID, lastId, code, segMan, oneLine);
         }
+
         if (newNodeLevel < thisNodeLevel) {
             valueNode.parentNode = &operatorNode;
             if (parentNode == nullptr) {
@@ -373,14 +358,42 @@ struct basicNode {
 
 
 //odevzda node s typem funqPlace a potPlacem
-basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan, std::deque<basicNode> &nodes,
-    basicNode* overNode, int nextId, varHandle &vars, functionHandle &funqHandle) {
+basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
+    std::deque<basicNode> &nodes, int nextId, varHandle &vars, functionHandle &funqHandle) {
+    //nejdriv nacte cislo, var, funkci nebo zavorku
+
+    goodVar possibleVar = findVar(oneLine, textStartPos, vars);
+    goodBracket possibleBracket = findBracket(oneLine, textStartPos);
+    goodNumber possibleNumber = findNumber(oneLine, textStartPos);
+    goodFunction possibleFunction = findFunction(oneLine, textStartPos, funqHandle);
+    basicNode* overNode = nullptr;
+    //1. var
+    if (possibleVar.exists) {
+        nodes.push_back({});
+        nodes.back().myPassePair.keys = possibleVar.varKeys;
+    }
+    //2. funkce
+    else if (possibleFunction.exists) {
+
+    }
+    //3. number
+    else if (possibleNumber.exists) {
+
+    }
+
+    //chyba zadne cislo, zavorka, funkce nebo variable
+    else if (possibleBracket.exists) {
+
+    }
+
+
     //nacita vyrazi stylem:  operator, single operator, zavorka, variable / funq / number; priklad:  + !x
     while (true) {
         //nacist operator
         goodOperator opert = findOperator(oneLine, textStartPos);
+        //konec stromu
         if (!opert.exists) {
-            return {nullptr, nullptr, nullptr, 0, nodeTypes::notWorking};
+            break;
         }
         textStartPos = opert.position;
 
@@ -390,46 +403,55 @@ basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code
             textStartPos = opertSingle.position;
         }
 
-        basicNode operatorNode = {nullptr, nullptr, nullptr, opert.position, nodeTypes::aritmo, nextId++, {},
-            0, nullptr, 0, opertSingle.op, opert.op};
+        nodes.push_back({nullptr, nullptr, nullptr, opert.position,
+            nodeTypes::aritmo, nextId++, {},
+            0, nullptr, 0, opertSingle.op, opert.op});
+        int operId = nodes.size() - 1;
 
         //nacist potencialni zavorku
         goodBracket brackt = findBracket(oneLine, textStartPos);
         if (brackt.exists) {
             textStartPos = brackt.position;
-            basicNode noder = parseBT(textStartPos, oneLine, code, segMan, nodes, overNode, nextId, vars, funqHandle);
 
-            if (noder.myArType == nodeTypes::notWorking) {
+            int bracketId = nodes.size() ;
+            nodes.push_back(parseBT(textStartPos, oneLine, code, segMan, nodes, nextId, vars, funqHandle));
+
+            if (nodes[bracketId].myArType == nodeTypes::notWorking) {
                 return {nullptr, nullptr, nullptr, 0, nodeTypes::notWorking};
             }
-            overNode->placeToTree(operatorNode,noder, nodes, -1, -1, code, segMan, oneLine);
+            overNode->placeToTree(nodes[operId],nodes[bracketId], nodes, -1, -1, code, segMan, oneLine);
             continue;
         }
 
         //nacist cislo, var nebo funkci
         //1. var
-        basicNode valueNode;
-        valueNode.nodeID = nextId++;
-        valueNode.textPosition = textStartPos;
+        int valueId = nodes.size();
+        nodes.push_back({});
+        nodes[valueId].nodeID = nextId++;
+        nodes[valueId].textPosition = textStartPos;
         goodVar possibleVar = findVar(oneLine, textStartPos, vars);
         if (!possibleVar.exists) {
             //2. funkce
             goodFunction possibleFunction = findFunction(oneLine, textStartPos, funqHandle);
-            if (!possibleVar.exists) {
+            if (!possibleFunction.exists) {
                 //3. cislo
                 goodNumber possibleNumber = findNumber(oneLine, textStartPos);
-                valueNode.wantedNum = possibleNumber.value;
-                overNode->placeToTree(operatorNode,valueNode, nodes, -1, -1, code, segMan, oneLine);
+                //chyba operator a po nem konec bez cisla
+                if (!possibleNumber.exists) {
+                    return {};
+                }
+                nodes[valueId].wantedNum = possibleNumber.value;
+                overNode->placeToTree(nodes[operId],nodes[valueId], nodes, -1, -1, code, segMan, oneLine);
                 continue;
             }
-            valueNode.funq = possibleFunction.func;
-            valueNode.textStartPos = possibleFunction.position;
-            overNode->placeToTree(operatorNode,valueNode, nodes, -1, -1, code, segMan, oneLine);
+            nodes[valueId].funq = possibleFunction.func;
+            nodes[valueId].textStartPos = possibleFunction.position;
+            overNode->placeToTree(nodes[operId],nodes[valueId], nodes, -1, -1, code, segMan, oneLine);
             continue;
         }
-        valueNode.myPassePair.var = possibleVar.var;
-        valueNode.myPassePair.keys = possibleVar.varKeys;
-        overNode->placeToTree(operatorNode,valueNode, nodes, -1, -1, code, segMan, oneLine);
+        nodes[valueId].myPassePair.var = possibleVar.var;
+        nodes[valueId].myPassePair.keys = possibleVar.varKeys;
+        overNode->placeToTree(nodes[operId],nodes[valueId], nodes, -1, -1, code, segMan, oneLine);
     }
 }
 
@@ -465,12 +487,6 @@ place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStar
         return {typePlace->size, originalP, false, false, inReg::reg1};
     }
     //takze to neni type constructor => binarni strom
-
-<<<<<<< HEAD
-=======
-
->>>>>>> a7b7fe46a9392db1c8a6e794d8a6a6e50b148101
-
     scope.myCache.curSize -= takenUpSpace;
 }
 
