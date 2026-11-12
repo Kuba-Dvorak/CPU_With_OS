@@ -355,51 +355,69 @@ struct basicNode {
 };
 
 
-//odevzda node s typem funqPlace a potPlacem
-basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
-    std::deque<basicNode> &nodes, int nextId, varHandle &vars, functionHandle &funqHandle) {
-    //nejdriv nacte cislo, var, funkci nebo zavorku
+basicNode parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
+    std::deque<basicNode> &nodes, int &nextId, varHandle &vars, functionHandle &funqHandle);
 
+
+//vrati value node
+basicNode getValueNode(int &textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
+                        int &nextId, varHandle &vars, functionHandle &funqHandle, std::deque<basicNode> &nodes, singleOperator opertSingle) {
     goodVar firstpossibleVar = findVar(oneLine, textStartPos, vars);
     goodBracket firstpossibleBracket = findBracket(oneLine, textStartPos);
     goodNumber firstpossibleNumber = findNumber(oneLine, textStartPos);
     goodFunction firstpossibleFunction = findFunction(oneLine, textStartPos, funqHandle);
-    nodes.push_back({});
-    basicNode* overNode = &nodes.back();
+    basicNode returningNode;
+    returningNode.nodeID = nextId;
+    returningNode.singleOper = opertSingle;
+    nextId += 1;
 
-    //1. var
+    //1. variable
     if (firstpossibleVar.exists) {
-        nodes.back().myPassePair.keys = firstpossibleVar.varKeys;
-        nodes.back().myPassePair.var = firstpossibleVar.var;
-        nodes.back().myArType = nodeTypes::variable;
+        returningNode.myPassePair.keys = firstpossibleVar.varKeys;
+        returningNode.myPassePair.var = firstpossibleVar.var;
+        returningNode.myArType = nodeTypes::variable;
         textStartPos = firstpossibleVar.position;
+        return returningNode;
     }
     //2. funkce
     else if (firstpossibleFunction.exists) {
-        nodes.back().funq = firstpossibleFunction.func;
-        nodes.back().myArType = nodeTypes::function;
+        returningNode.funq = firstpossibleFunction.func;
+        returningNode.myArType = nodeTypes::function;
         textStartPos = firstpossibleFunction.position;
+        return returningNode;
     }
     //3. number
     else if (firstpossibleNumber.exists) {
-        nodes.back().wantedNum = firstpossibleNumber.value;
-        nodes.back().myArType = nodeTypes::number;
+        returningNode.wantedNum = firstpossibleNumber.value;
+        returningNode.myArType = nodeTypes::number;
         textStartPos = firstpossibleNumber.position;
+        return returningNode;
     }
 
     //4. zavorka
     else if (firstpossibleBracket.exists) {
-        nodes.back().myArType = nodeTypes::funqPlace;
-        basicNode valueNode = parseBT(textStartPos, oneLine, code, segMan, nodes, nextId, vars, funqHandle);
-        nodes.back().potPlace = valueNode.createBinary(code, segMan, oneLine);
+        returningNode.myArType = nodeTypes::funqPlace;
         textStartPos = firstpossibleBracket.position;
+        basicNode valueNode = parseBT(textStartPos, oneLine, code, segMan, nodes, nextId, vars, funqHandle);
+        returningNode.potPlace = valueNode.createBinary(code, segMan, oneLine);
+        return returningNode;
     }
 
     //5. chyba
     else {
         return {nullptr, nullptr};
     }
+}
 
+
+//odevzda node s typem funqPlace a potPlacem
+basicNode parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
+    std::deque<basicNode> &nodes, int &nextId, varHandle &vars, functionHandle &funqHandle) {
+
+    nodes.push_back(getValueNode(textStartPos, oneLine, code, segMan, nextId, vars, funqHandle, nodes, singleOperator::noSingleOper));
+    //nejdriv nacte cislo, var, funkci nebo zavorku
+    basicNode* overNode = &nodes.back();
+    bool firstThrought = true;
 
     //nacita vyrazi stylem:  operator, single operator, zavorka, variable / funq / number; priklad:  + !x
     while (true) {
@@ -417,61 +435,31 @@ basicNode parseBT(int textStartPos, std::string &oneLine, fullCompiledCode &code
             textStartPos = opertSingle.position;
         }
 
+        int opertID = nodes.size();
         nodes.push_back({nullptr, nullptr, nullptr, opert.position,
             nodeTypes::aritmo, nextId++, {},
-            0, nullptr, 0, opertSingle.op, opert.op});
-        int operId = nodes.size() - 1;
-
-        //nacist potencialni zavorku
-        goodBracket brackt = findBracket(oneLine, textStartPos);
-        if (brackt.exists) {
-            textStartPos = brackt.position;
-
-            int valueNodeID = nodes.size();
-            nodes.push_back(parseBT(textStartPos, oneLine, code, segMan, nodes, nextId, vars, funqHandle));
-
-            if (nodes[valueNodeID].myArType == nodeTypes::notWorking) {
-                return {nullptr, nullptr};
-            }
-            overNode->placeToTree(nodes[operId],nodes[valueNodeID], nodes, -1, -1, code, segMan, oneLine);
-            continue;
+            0, nullptr, 0, singleOperator::noSingleOper, opert.op});
+        textStartPos = opertSingle.position;
+        if (firstThrought) {
+            firstThrought = false;
+            nodes[opertID].leftNode = overNode;
+            nodes.push_back(getValueNode(textStartPos, oneLine, code, segMan, nextId, vars, funqHandle, nodes, opertSingle.op));
+            int valueID = nodes.size() - 1;
+            nodes[opertID].rightNode = &nodes[valueID];
         }
-
-        //nacist cislo, var nebo funkci
-        //1. var
-        int valueId = nodes.size();
-        nodes.push_back({});
-        nodes[valueId].nodeID = nextId++;
-        nodes[valueId].textPosition = textStartPos;
-        goodVar possibleVar = findVar(oneLine, textStartPos, vars);
-        if (!possibleVar.exists) {
-            //2. funkce
-            goodFunction possibleFunction = findFunction(oneLine, textStartPos, funqHandle);
-            if (!possibleFunction.exists) {
-                //3. cislo
-                goodNumber possibleNumber = findNumber(oneLine, textStartPos);
-                //chyba operator a po nem konec bez cisla
-                if (!possibleNumber.exists) {
-                    return {};
-                }
-                nodes[valueId].wantedNum = possibleNumber.value;
-                overNode->placeToTree(nodes[operId],nodes[valueId], nodes, -1, -1, code, segMan, oneLine);
-                continue;
-            }
-            nodes[valueId].funq = possibleFunction.func;
-            nodes[valueId].textStartPos = possibleFunction.position;
-            overNode->placeToTree(nodes[operId],nodes[valueId], nodes, -1, -1, code, segMan, oneLine);
-            continue;
+        else {
+            nodes.push_back(getValueNode(textStartPos, oneLine, code, segMan, nextId, vars, funqHandle, nodes, opertSingle.op));
+            int valueID = nodes.size() - 1;
+            overNode->placeToTree(nodes[opertID], nodes[valueID], nodes, -1, -1, code, segMan, oneLine);
+            overNode = overNode->getRoot();
         }
-        nodes[valueId].myPassePair.var = possibleVar.var;
-        nodes[valueId].myPassePair.keys = possibleVar.varKeys;
-        overNode->placeToTree(nodes[operId],nodes[valueId], nodes, -1, -1, code, segMan, oneLine);
     }
 
     //nakonec vytvorit binarku z bt segmentu, a pak node s pot placem
     place potPlace = overNode->getRoot()->createBinary(code, segMan, oneLine);
     basicNode quickNode;
     quickNode.potPlace = potPlace;
+    quickNode.nodeID = nextId++;
     nodes.push_back(quickNode);
     return nodes.back();
 }
