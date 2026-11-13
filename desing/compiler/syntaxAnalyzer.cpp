@@ -12,7 +12,7 @@
 struct basicNode;
 
 
-void prepareFnInput(int &textStartPos, int inputsFunqStartLoc, basicFunction* funq, std::string &oneLine, fullCompiledCode &code, segmentManager &scope);
+std::vector<place> prepareFnInput(int &textStartPos, basicFunction* funq, std::string &oneLine, fullCompiledCode &code, segmentManager &scope, varHandle &vars, functionHandle &funqHandle);
 
 
 //co jde chronologicky ve vypoctu driv ma vyssi prioritu: napr: nasobeni ma vyssi level nez scitani
@@ -52,24 +52,37 @@ struct basicNode {
         }
         return parentNode->getRoot();
     }
-    
+
+
     place evaluateNumber(fullCompiledCode &code, segmentManager &segMan) {
         bool preparedSpaceIsRef = false;
         if (singleOper == singleOperator::isPointer) {
             preparedSpaceIsRef = true;
         }
-        int sizeOfNum = (int)std::ceil(std::log2f(wantedNum)) / 8;
+        int sizeOfNum;
+        if (wantedNum == 0) {
+            sizeOfNum = 1;
+        }
+        else {
+            if (wantedNum < 0) {
+                sizeOfNum = std::ceil((std::floor(std::log2f(wantedNum * -1)) + 2) / 8.0f);
+            }
+            else {
+                sizeOfNum = std::ceil((std::floor(std::log2f(wantedNum)) + 2) / 8.0f);
+            }
+        }
         place returnPlace = {sizeOfNum, segMan.reqFreeSub(sizeOfNum), preparedSpaceIsRef, false, inReg::reg1};
         setRamLocal(wantedNum, returnPlace.pointer, returnPlace.size, code);
         if (singleOper == singleOperator::notOperBit) {
-            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notBitOp);
+            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notBitOp, false);
         }
         if (singleOper == singleOperator::notOperByte) {
-            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notByteOp);
+            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notByteOp, false);
         }
         return returnPlace;
     }
-    
+
+
     place evaluateVar(fullCompiledCode &code, segmentManager &segMan) {
         bool preparedSpaceIsRef = false;
         if (singleOper == singleOperator::isPointer) {
@@ -82,43 +95,49 @@ struct basicNode {
         place returnPlace = {thatSize, segMan.reqFreeSub(thatSize), preparedSpaceIsRef, false, inReg::reg1};
         myPassePair.var->call(myPassePair.keys, code, returnPlace, false);
         if (singleOper == singleOperator::notOperBit) {
-            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notBitOp);
+            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notBitOp, false);
         }
         if (singleOper == singleOperator::notOperByte) {
-            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notByteOp);
+            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notByteOp, false);
         }
         return returnPlace;
     }
-    
-    place evaluateFn(fullCompiledCode &code, segmentManager &segMan, std::string &oneLine) {
+
+
+    place evaluateFn(fullCompiledCode &code, segmentManager &segMan, std::string &oneLine, varHandle &vars, functionHandle &funqHandle) {
+        //funkce: 1. output, 2. jumpBack, 3. inputy, 4. samotatne veci funkce
         bool preparedSpaceIsRef = false;
         if (singleOper == singleOperator::isPointer) {
             preparedSpaceIsRef = true;
         }
-        int absOffset = 0;
-        //output
-        segMan.reqFreeSub(funq->outputType->getSize());
-        absOffset += funq->outputType->getSize();
-        //jumpback
-        segMan.reqFreeSub(addressSize);
-        absOffset += addressSize;
-        //inputy
-        int startLoc = segMan.reqFreeSub(funq->getInputsSize());
-        absOffset += funq->getInputsSize();
-        prepareFnInput(textStartPos, startLoc, funq, oneLine, code, segMan);
-        //volani
-        segMan.callDiffFunq(code, absOffset);
-        funq->getCalled(code);
-        //tady se nejspis uspesne zavolala funkce se skokem v instrukcich
-        //tady ji zas ukoncime
-        segMan.endFunq(code);
+        int jumpBy = 0;
+        //1. pripravime inputy
+        std::vector<place> places = prepareFnInput(textStartPos, funq, oneLine, code, segMan, vars, funqHandle);
+        //2. pripravime output
         int outputLoc = segMan.reqFreeSub(funq->outputType->getSize());
+        jumpBy += funq->outputType->getSize();
+        //3. pripravime jumpPlace
+        int jumpPlace = segMan.reqFreeSub(addressSize);
+        jumpBy += addressSize;
+        //4. naplnime inputy
+        for (int i = 0; i < places.size(); i++) {
+            place placeTo = {funq->inputsInner[i]->getSize(), segMan.reqFreeSub(funq->inputsInner[i]->getSize()), funq->inputsInner[i]->isRef, false, inReg::reg1};
+            jumpBy += funq->inputsInner[i]->getSize();
+            copyFromTo(places[i], placeTo, code, false);
+        }
+        //5. zavolame
+        segMan.callDiffFunq(code, jumpBy);
+        funq->getCalled(code);
+
+        //6. ukoncime
+        segMan.endFunq(code);
+
         place returnPlace = {funq->outputType->getSize(), outputLoc, funq->outputType->isRef || preparedSpaceIsRef, false, inReg::reg1};
         if (singleOper == singleOperator::notOperBit) {
-            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notBitOp);
+            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notBitOp, false);
         }
         if (singleOper == singleOperator::notOperByte) {
-            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notByteOp);
+            logicalOperation(returnPlace, {}, returnPlace, code, logOperators::notByteOp, false);
         }
         return returnPlace;
     }
@@ -186,7 +205,7 @@ struct basicNode {
     }
 
 
-    place createBinary(fullCompiledCode &code, segmentManager &segMan, std::string &oneLine) {
+    place createBinary(fullCompiledCode &code, segmentManager &segMan, std::string &oneLine, varHandle &vars, functionHandle &funqHandle) {
         if (myArType == nodeTypes::notWorking || textPosition == -1 || nodeID == -1) {
             return {-2, -1, false, false, inReg::reg1};
         }
@@ -196,8 +215,8 @@ struct basicNode {
                 return {-2, -1, false, false, inReg::reg1};
             }
 
-            place numA = leftNode->createBinary(code, segMan, oneLine);
-            place numB = rightNode->createBinary(code, segMan, oneLine);
+            place numA = leftNode->createBinary(code, segMan, oneLine, vars, funqHandle);
+            place numB = rightNode->createBinary(code, segMan, oneLine, vars, funqHandle);
             bool preparedSpaceIsRef = false;
             place placeReturner;
             if (singleOper == singleOperator::isPointer) {
@@ -236,7 +255,7 @@ struct basicNode {
         }
 
         if (myArType == nodeTypes::function) {
-            return evaluateFn(code, segMan, oneLine);
+            return evaluateFn(code, segMan, oneLine, vars, funqHandle);
         }
 
         if (myArType == nodeTypes::funqPlace) {
@@ -355,15 +374,16 @@ struct basicNode {
 };
 
 
-basicNode parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
+place parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
     std::deque<basicNode> &nodes, int &nextId, varHandle &vars, functionHandle &funqHandle);
+
 
 
 //vrati value node
 basicNode getValueNode(int &textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
                         int &nextId, varHandle &vars, functionHandle &funqHandle, std::deque<basicNode> &nodes, singleOperator opertSingle) {
     goodVar firstpossibleVar = findVar(oneLine, textStartPos, vars);
-    goodBracket firstpossibleBracket = findBracket(oneLine, textStartPos);
+    goodBracket firstpossibleBracket = findStartBracket(oneLine, textStartPos);
     goodNumber firstpossibleNumber = findNumber(oneLine, textStartPos);
     goodFunction firstpossibleFunction = findFunction(oneLine, textStartPos, funqHandle);
     basicNode returningNode;
@@ -371,50 +391,67 @@ basicNode getValueNode(int &textStartPos, std::string &oneLine, fullCompiledCode
     returningNode.singleOper = opertSingle;
     nextId += 1;
 
-    //1. variable
+    //1. funkce
+    if (firstpossibleFunction.exists) {
+        returningNode.funq = firstpossibleFunction.func;
+        returningNode.myArType = nodeTypes::function;
+        textStartPos = firstpossibleFunction.position;
+        returningNode.textPosition = textStartPos;
+        returningNode.textStartPos = textStartPos;
+        textStartPos = firstpossibleFunction.endOfFunq;
+        return returningNode;
+    }
+
+    //2. variable
     if (firstpossibleVar.exists) {
         returningNode.myPassePair.keys = firstpossibleVar.varKeys;
         returningNode.myPassePair.var = firstpossibleVar.var;
         returningNode.myArType = nodeTypes::variable;
         textStartPos = firstpossibleVar.position;
+        returningNode.textPosition = textStartPos;
         return returningNode;
     }
-    //2. funkce
-    else if (firstpossibleFunction.exists) {
-        returningNode.funq = firstpossibleFunction.func;
-        returningNode.myArType = nodeTypes::function;
-        textStartPos = firstpossibleFunction.position;
-        return returningNode;
-    }
+
     //3. number
-    else if (firstpossibleNumber.exists) {
+    if (firstpossibleNumber.exists) {
         returningNode.wantedNum = firstpossibleNumber.value;
         returningNode.myArType = nodeTypes::number;
         textStartPos = firstpossibleNumber.position;
+        returningNode.textPosition = textStartPos;
         return returningNode;
     }
 
     //4. zavorka
-    else if (firstpossibleBracket.exists) {
+    if (firstpossibleBracket.exists) {
         returningNode.myArType = nodeTypes::funqPlace;
         textStartPos = firstpossibleBracket.position;
-        basicNode valueNode = parseBT(textStartPos, oneLine, code, segMan, nodes, nextId, vars, funqHandle);
-        returningNode.potPlace = valueNode.createBinary(code, segMan, oneLine);
+        returningNode.potPlace = parseBT(textStartPos, oneLine, code, segMan, nodes, nextId, vars, funqHandle);
+        returningNode.textPosition = textStartPos;
+        goodBracket endingBracket = findEndBracket(oneLine, textStartPos);
+        if (!endingBracket.exists) {
+            return {nullptr, nullptr};
+        }
+        textStartPos = endingBracket.position;
         return returningNode;
     }
 
     //5. chyba
-    else {
-        return {nullptr, nullptr};
-    }
+    return {nullptr, nullptr};
 }
 
 
 //odevzda node s typem funqPlace a potPlacem
-basicNode parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
+place parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &code, segmentManager &segMan,
     std::deque<basicNode> &nodes, int &nextId, varHandle &vars, functionHandle &funqHandle) {
 
-    nodes.push_back(getValueNode(textStartPos, oneLine, code, segMan, nextId, vars, funqHandle, nodes, singleOperator::noSingleOper));
+
+    //nacist single operator
+    goodSingleOperator opertSingle = findSingleOperator(oneLine, textStartPos);
+    if (opertSingle.op != singleOperator::noSingleOper) {
+        textStartPos = opertSingle.position;
+    }
+
+    nodes.push_back(getValueNode(textStartPos, oneLine, code, segMan, nextId, vars, funqHandle, nodes, opertSingle.op));
     //nejdriv nacte cislo, var, funkci nebo zavorku
     basicNode* overNode = &nodes.back();
     bool firstThrought = true;
@@ -428,6 +465,10 @@ basicNode parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &cod
             break;
         }
         textStartPos = opert.position;
+        int opertID = nodes.size();
+        nodes.push_back({nullptr, nullptr, nullptr, opert.position,
+            nodeTypes::aritmo, nextId++, {},
+            0, nullptr, 0, singleOperator::noSingleOper, opert.op});
 
         //nacist single operator
         goodSingleOperator opertSingle = findSingleOperator(oneLine, textStartPos);
@@ -435,18 +476,17 @@ basicNode parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &cod
             textStartPos = opertSingle.position;
         }
 
-        int opertID = nodes.size();
-        nodes.push_back({nullptr, nullptr, nullptr, opert.position,
-            nodeTypes::aritmo, nextId++, {},
-            0, nullptr, 0, singleOperator::noSingleOper, opert.op});
-        textStartPos = opertSingle.position;
         if (firstThrought) {
             firstThrought = false;
             nodes[opertID].leftNode = overNode;
+            overNode->parentNode = &nodes[opertID];
             nodes.push_back(getValueNode(textStartPos, oneLine, code, segMan, nextId, vars, funqHandle, nodes, opertSingle.op));
             int valueID = nodes.size() - 1;
             nodes[opertID].rightNode = &nodes[valueID];
+            nodes[valueID].parentNode = &nodes[opertID];
+            overNode = &nodes[opertID];
         }
+
         else {
             nodes.push_back(getValueNode(textStartPos, oneLine, code, segMan, nextId, vars, funqHandle, nodes, opertSingle.op));
             int valueID = nodes.size() - 1;
@@ -454,70 +494,73 @@ basicNode parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &cod
             overNode = overNode->getRoot();
         }
     }
-
-    //nakonec vytvorit binarku z bt segmentu, a pak node s pot placem
-    place potPlace = overNode->getRoot()->createBinary(code, segMan, oneLine);
-    basicNode quickNode;
-    quickNode.potPlace = potPlace;
-    quickNode.nodeID = nextId++;
-    nodes.push_back(quickNode);
-    return nodes.back();
+    //nakonec returnout binarku z definitivne absolutniho rootu stromu
+    return overNode->getRoot()->createBinary(code, segMan, oneLine, vars, funqHandle);
 }
 
 
-
 //vraci place na kterem je ta vec ulozena a uz je vytvorena
-place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStartPos, std::string &oneLine, fullCompiledCode &code) {
-    //nejdriv rozdeleni bintree/typeConstructor
-    //pokud plati putToIsOnEnd tak muzeme stavet od putTo dal, a nemusime vlastne skoro vubec kopirovat navic
-    int takenUpSpace = 0;
-    //do takenUpSpace se NEPOCITA return place
-    goodConstructStart ctrStr = findConstructStart(oneLine, textStartPos);
-    if (ctrStr.exists) {
-        //pro kazdou promenou z typu zavolame zase nasi funkci
-        textStartPos = ctrStr.position;
-        int curPointer = scope.reqFreeSub(typePlace->size);
-        int originalP = curPointer;
+place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStartPos, std::string &oneLine, fullCompiledCode &code, varHandle &vars, functionHandle &funqHandle) {
+    goodConstructStart constStart = findConstructStart(oneLine, textStartPos);
+    if (constStart.exists) {
+        int zeroPointer = scope.reqFreeSub(0);
+        int startPointer = scope.reqFreeSub(typePlace->size);
         for (int i = 0; i < typePlace->params.size(); i++) {
-            place createdPlace = createParsedSegment(typePlace->params[i], scope, textStartPos, oneLine, code);
-            copyFromTo(createdPlace, {typePlace->params[i]->size, curPointer, typePlace->isRef[i],
-                false, inReg::reg1}, code, false);
-            curPointer += typePlace->params[i]->size;
+            //1. nacist segment v jako cast typu
+            place createdSegment = createParsedSegment(typePlace->params[i], scope, textStartPos, oneLine, code, vars, funqHandle);
+
+            //2. pretransportovat segment na spravne misto
+            if (typePlace->isRef[i]) {
+                copyFromTo(createdSegment, {2, startPointer, true, false, inReg::reg1 }, code, false);
+                startPointer += 2;
+            }
+
+            else {
+                copyFromTo(createdSegment, {typePlace->params[i]->size, startPointer, false, false, inReg::reg1}, code, false);
+                startPointer += typePlace->params[i]->size;
+            }
+
+            //3. najit separator, kdyz neni => nevyplnovat zbyvajici casti typu
+            goodSeparator separator = findSeparator(oneLine, textStartPos);
+            if (!separator.exists) {
+                break;
+            }
+            textStartPos = separator.position;
         }
-
-        goodConstructStart ctrEnd = findConstructStart(oneLine, textStartPos);
-
-        if (!ctrEnd.exists) {
-            //chyba! po consturktoru nemuze byt nic dalsiho
+        //nacist konec konstruktoru
+        goodConstructStart constrEnd = findConstructEnd(oneLine, textStartPos);
+        if (!constrEnd.exists) {
+            //chyba
         }
-
-        textStartPos = ctrEnd.position;
-
-        return {typePlace->size, originalP, false, false, inReg::reg1};
+        textStartPos = constrEnd.position;
+        return {typePlace->size, zeroPointer, false, false, inReg::reg1};
     }
-    //takze to neni type constructor => binarni strom
-    scope.myCache.curSize -= takenUpSpace;
+    //zapnout binarni strom
+    std::deque<basicNode> nodeList = {};
+    int firstId = 0;
+    return parseBT(textStartPos, oneLine, code, scope, nodeList, firstId, vars, funqHandle);
 }
 
 
 //bereme to tak ze misto pro output a jumpBack uz je zabrane
-void prepareFnInput(int &textStartPos, int inputsPointerStart, basicFunction* funq, std::string &oneLine, fullCompiledCode &code, segmentManager &scope) {
+std::vector<place> prepareFnInput(int &textStartPos, basicFunction* funq, std::string &oneLine, fullCompiledCode &code, segmentManager &scope, varHandle &vars, functionHandle &funqHandle) {
+    std::vector<place> resultPlaces = {};
     for (int i = 0; i < funq->inputsInner.size(); i++) {
-        place placeTo = {funq->inputsInner[i]->getSize(), inputsPointerStart, funq->inputsInner[i]->isRef, false, inReg::reg1};
-        inputsPointerStart += funq->inputsInner[i]->getSize();
-        place artificialPlace = createParsedSegment(funq->inputsInner[i]->myTypee, scope, textStartPos, oneLine, code);
-        copyFromTo(artificialPlace, placeTo, code, false);
+        resultPlaces.push_back(createParsedSegment(funq->inputsInner[i]->myTypee, scope, textStartPos, oneLine, code, vars, funqHandle));
+        //najdi carku
         goodSeparator separator = findSeparator(oneLine, textStartPos);
-        if (((i + 1) < funq->inputsInner.size()) || !separator.exists) {
+        if (!separator.exists) {
             break;
         }
         textStartPos = separator.position;
     }
     //hledani ukonceni funkce -> )
-    goodBracket bracket = findBracket(oneLine, textStartPos);
+    goodBracket bracket = findEndBracket(oneLine, textStartPos);
     if (!bracket.exists) {
         //chyba v ukonceni funkce
     }
     textStartPos = bracket.position;
+
+    return resultPlaces;
 }
 

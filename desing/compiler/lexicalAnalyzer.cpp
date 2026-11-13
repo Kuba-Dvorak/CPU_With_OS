@@ -33,6 +33,11 @@ goodConstructStart findConstructStart(std::string &lineCode, int startPosition) 
 }
 
 
+goodConstructStart findConstructEnd(std::string &lineCode, int startPosition) {
+
+}
+
+
 //promena: [prefixy] jmeno [.keys]
 goodVar findVar(std::string &lineCode, int startPosition, varHandle &vars) {
 
@@ -52,7 +57,12 @@ goodNumber findNumber(std::string &lineCode, int startPosition) {
 
 
 //normalni zavorka: [prefixy] normalBracketStart "("
-goodBracket findBracket(std::string &lineCode, int startPosition) {
+goodBracket findStartBracket(std::string &lineCode, int startPosition) {
+
+}
+
+
+goodBracket findEndBracket(std::string &lineCode, int startPosition) {
 
 }
 

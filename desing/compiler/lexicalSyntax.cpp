@@ -134,6 +134,7 @@ struct goodVar {
 struct goodFunction {
     basicFunction* func;
     int position; //pozice na zacatek zavorek
+    int endOfFunq; //pozice za koncem funkce - musi to projet funkci od start funkce, a pocitat si dalsi zavorky, zaciname cislem 0, pokud najdeme dalsi zacinajici zavorku tak pricteme tomhlu cislu 1, a pokud najdeme k tehle zavirajici tak odecteme 1, tim zajistime ze zavirajici zavorka pro tuhle funkci a ne jina
     bool exists;
 };
 
@@ -146,7 +147,6 @@ struct goodNumber {
 
 
 struct goodBracket {
-    std::vector<singleOperator> whatToDoAfter = {};
     int position;
     bool exists;
 };

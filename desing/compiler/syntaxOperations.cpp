@@ -497,15 +497,20 @@ std::string logOperToString(logOperators oper) {
 
 
 //pro negaci staci vyplnit numA
-void logicalOperation(place numA, place numB, place placeTo, fullCompiledCode &code, logOperators opers) {
+void logicalOperation(place numA, place numB, place placeTo, fullCompiledCode &code, logOperators opers, bool cleanPlaceTo = true) {
     std::string operation = logOperToString(opers);
-    cleanPlace(placeTo, code);
+    if (cleanPlaceTo) {
+        cleanPlace(placeTo, code);
+    }
     if (opers == logOperators::notBitOp) {
         loadAddr(numA.pointer, code, asmSyntax.reg1);
         code.addInstruction(asmSyntax.setReg + asmSyntax.reg2 + "0");
         code.addInstruction(asmSyntax.negateBit + asmSyntax.reg1 + asmSyntax.reg2);
         transferAddr(placeTo.pointer, code, asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegRam + asmSyntax.reg2 + asmSyntax.regStackOper);
+        if (placeTo.size > 1) {
+            cleanPlace({placeTo.size - 1, placeTo.pointer + 1, false, false, inReg::reg1}, code);
+        }
     }
 
     else if (opers == logOperators::notByteOp) {

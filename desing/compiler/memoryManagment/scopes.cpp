@@ -69,8 +69,9 @@ struct segmentManager {
     void endFunq(fullCompiledCode &code) {
          //takhle kdyz pak nacteme dalsi freeSub, tak v nem bude ten output (pokud bude mit velikost outputSize)
          //a ty dalsi potom muzeme prepsat takze to je ok
+        //cache se nakonec (toto rozhodnuti: 13.11. 2026) protoze je chytrejsi, pro nas ulozit si cisla a mit je ulozene, v tom cachi
         code.addInstruction(asmSyntax.rmReg + asmSyntax.regStackPointer
-            + std::to_string(curScopes.back().curPos + myCache.curSize - lastFunqOffset.back()) + asmSyntax.regStackOper);
+            + std::to_string(curScopes.back().curPos - lastFunqOffset.back()) + asmSyntax.regStackOper);
         code.addInstruction(asmSyntax.movRegReg16 + asmSyntax.regStackOper + asmSyntax.regStackPointer);
         myCache.curSize -= lastFunqOffset.back();
         lastFunqOffset.pop_back();
