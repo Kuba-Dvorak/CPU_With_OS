@@ -16,7 +16,9 @@ enum class astNodeNames {
     setVar = 7,
     continuer = 8,
     returner = 9,
-    breaker = 10
+    breaker = 10,
+    callFunq = 11,
+    segmentEnder = 12
 };
 
 
@@ -67,8 +69,8 @@ struct syntaxForBT {
     std::string normalBracketEnd = ")";
     std::string typeConstrStart = "[";
     std::string typeConstrEnd = "]";
-    std::string functionCallStart = "<";
-    std::string functionCallEnd = ">";
+    std::string functionCallStart = "/_";
+    std::string functionCallEnd = "_/";
 };
 
 
@@ -169,4 +171,11 @@ struct goodSingleOperator {
 struct goodSeparator {
     int position;
     bool exists;
+};
+
+
+struct typePart {
+    std::string name;
+    std::string typeOf;
+    bool isRef;
 };

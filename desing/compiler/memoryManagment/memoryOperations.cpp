@@ -64,41 +64,97 @@ struct place {
 
 //hloupa funkce kterou ovlada copyFromTo, kopiruje podle adres a to veci z reg1 do reg2
 //bere "tabulku"
-void copyByTable(varVarCopyTable inpt, int toSize, fullCompiledCode &code, inReg regFrom, inReg regTo, bool changeOriginal) {
+void copyByTable(varVarCopyTable inpt, int toSize, fullCompiledCode &code, inReg regFrom, inReg regTo, bool changeOriginal, int fromSize) {
     if (inpt == varVarCopyTable::pointerToPointer) {
         code.addInstruction(asmSyntax.movRamRam16 + inRegToString(regFrom) + inRegToString(regTo));
         return;
     }
 
     if (inpt == varVarCopyTable::pointerToValue) {
+        fromSize = toSize;
         code.addInstruction(asmSyntax.movRamReg16 + inRegToString(regFrom) + asmSyntax.regStackOper);
-        for (int i = 0; i < toSize; i++) {
+        while (true) {
             code.addInstruction(asmSyntax.movRamRam + asmSyntax.regStackOper + inRegToString(regTo));
+            toSize -= 1;
+            fromSize -= 1;
+            if (toSize <= 0) {
+                return;
+            }
+            if (fromSize <= 0) {
+                code.addInstruction(asmSyntax.movRamReg + asmSyntax.regStackOper + asmSyntax.reg5);
+                code.addInstruction(asmSyntax.setBySign + asmSyntax.reg5 + asmSyntax.signReg1);
+                code.addInstruction(asmSyntax.incrementReg + inRegToString(regTo));
+                break;
+            }
             code.addInstruction(asmSyntax.incrementReg + asmSyntax.regStackOper);
             code.addInstruction(asmSyntax.incrementReg + inRegToString(regTo));
         }
-        return;
+        while (true) {
+            code.addInstruction(asmSyntax.movRegRam + asmSyntax.signReg1 + inRegToString(regTo));
+            code.addInstruction(asmSyntax.incrementReg + inRegToString(regTo));
+            toSize -= 1;
+            if (toSize <= 0) {
+                return;
+            }
+        }
     }
 
     if (inpt == varVarCopyTable::valueToPointer) {
         if (changeOriginal) {
             code.addInstruction(asmSyntax.movRamReg16 + inRegToString(regTo) + asmSyntax.regStackOper);
-            for (int i = 0; i < toSize; i++) {
+            while (true) {
                 code.addInstruction(asmSyntax.movRamRam + inRegToString(regFrom) + asmSyntax.regStackOper);
+                toSize -= 1;
+                fromSize -= 1;
+                if (toSize <= 0) {
+                    return;
+                }
+                if (fromSize <= 0) {
+                    code.addInstruction(asmSyntax.movRamReg + inRegToString(regFrom) + asmSyntax.reg5);
+                    code.addInstruction(asmSyntax.setBySign + asmSyntax.reg5 + asmSyntax.signReg1);
+                    code.addInstruction(asmSyntax.incrementReg + asmSyntax.regStackOper);
+                    break;
+                }
                 code.addInstruction(asmSyntax.incrementReg + asmSyntax.regStackOper);
                 code.addInstruction(asmSyntax.incrementReg + inRegToString(regFrom));
             }
-            return;
+            while (true) {
+                code.addInstruction(asmSyntax.movRegRam + asmSyntax.signReg1 + asmSyntax.regStackOper);
+                code.addInstruction(asmSyntax.incrementReg + asmSyntax.regStackOper);
+                toSize -= 1;
+                if (toSize <= 0) {
+                    return;
+                }
+            }
         }
         code.addInstruction(asmSyntax.movRegRam16 + inRegToString(regFrom) + inRegToString(regTo));
         return;
     }
 
     if (inpt == varVarCopyTable::valueToValue) {
-        for (int i = 0; i < toSize; i++) {
+        while (true) {
             code.addInstruction(asmSyntax.movRamRam + inRegToString(regFrom) + inRegToString(regTo));
+            toSize -= 1;
+            fromSize -= 1;
+            if (toSize <= 0) {
+                return;
+            }
+            if (fromSize <= 0) {
+                code.addInstruction(asmSyntax.movRamReg + inRegToString(regFrom) + asmSyntax.reg5);
+                code.addInstruction(asmSyntax.setBySign + asmSyntax.reg5 + asmSyntax.signReg1);
+                code.addInstruction(asmSyntax.incrementReg + inRegToString(regTo));
+                break;
+            }
             code.addInstruction(asmSyntax.incrementReg + inRegToString(regFrom));
             code.addInstruction(asmSyntax.incrementReg + inRegToString(regTo));
+        }
+        while (true) {
+            code.addInstruction(asmSyntax.movRegRam + asmSyntax.signReg1 + inRegToString(regTo));
+            code.addInstruction(asmSyntax.incrementReg + inRegToString(regTo));
+            toSize -= 1;
+            if (toSize <= 0) {
+                return;
+            }
         }
         return;
     }
@@ -136,26 +192,26 @@ bool copyFromTo(place from, place to, fullCompiledCode &code, bool pointingMode)
         //davame duveru uzivateli
         toSize = from.size;
     }
-    
+
     if (from.isInReg) {
         if (to.isInReg) {
-            copyByTable(varsToTable(from, to), toSize, code, from.regLoc, to.regLoc, pointingMode);
+            copyByTable(varsToTable(from, to), toSize, code, from.regLoc, to.regLoc, pointingMode, from.size);
             return true;
         }
         to.turnToGlobal(inRegOposite(from.regLoc), code);
-        copyByTable(varsToTable(from, to), toSize, code, from.regLoc, inRegOposite(from.regLoc), pointingMode);
+        copyByTable(varsToTable(from, to), toSize, code, from.regLoc, inRegOposite(from.regLoc), pointingMode, from.size);
         return true;
     }
 
     if (to.isInReg) {
         from.turnToGlobal(inRegOposite(to.regLoc), code);
-        copyByTable(varsToTable(from, to), toSize, code, inRegOposite(to.regLoc), to.regLoc, pointingMode);
+        copyByTable(varsToTable(from, to), toSize, code, inRegOposite(to.regLoc), to.regLoc, pointingMode, from.size);
         return true;
     }
 
     from.turnToGlobal(inReg::reg1, code);
     to.turnToGlobal(inReg::reg2, code);
-    copyByTable(varsToTable(from, to), toSize, code, inReg::reg1, inReg::reg2, pointingMode);
+    copyByTable(varsToTable(from, to), toSize, code, inReg::reg1, inReg::reg2, pointingMode, from.size);
 
     return true;
 }

@@ -21,7 +21,7 @@ def load(name):
 def git_info():
     try:
         h = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=HERE, capture_output=True, text=True).stdout.strip()
-        dirty = subprocess.run(["git", "status", "--porcelain", "--", "../memoryManagment", "../syntax.cpp"],
+        dirty = subprocess.run(["git", "status", "--porcelain", "--", "../memoryManagment", "../"],
                                cwd=HERE, capture_output=True, text=True).stdout.strip()
         return h + (" + neuložené změny" if dirty else "")
     except OSError:
@@ -157,15 +157,38 @@ ul.assume { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); }
 <body>
 <main>
   <h1>AI testy kompilátoru</h1>
-  <p class="sub">Kód vygenerovaný z <code>memoryManagment/*</code> spuštěný v referenčním simulátoru ISA (<code>AI-tests/sim.hpp</code>). Kontroluje se celá RAM, registry i SP.</p>
+  <p class="sub">Kód vygenerovaný kompilátorem (<code>syntaxAnalyzer</code>, <code>syntaxOperations</code>, <code>memoryManagment/*</code>) spuštěný v referenčním simulátoru ISA (<code>AI-tests/sim.hpp</code>). Kontroluje se celá RAM, registry i SP. Lexer je zatím náhradní (<code>AI-tests/mock_lexer.cpp</code>).</p>
   <div class="meta" id="meta"></div>
-  <nav><a href="#s-find">Co testy našly</a><a href="#s-calls">Volání funkcí</a><a href="#s-paths">Cesty přes struktury</a><a href="#s-copy">copyFromTo</a><a href="#s-scopes">Scopy</a><a href="#s-cost">Cena kopírování</a><a href="#s-regs">Registry</a><a href="#s-mut">Mutační test</a><a href="#s-assume">Předpoklady</a></nav>
+  <nav><a href="#s-find">Co testy našly</a><a href="#s-expr">Výrazy</a><a href="#s-ops">Aritmetika</a><a href="#s-calls">Volání funkcí</a><a href="#s-paths">Cesty přes struktury</a><a href="#s-copy">copyFromTo</a><a href="#s-scopes">Scopy</a><a href="#s-cost">Cena kopírování</a><a href="#s-regs">Registry</a><a href="#s-mut">Mutační test</a><a href="#s-assume">Předpoklady</a></nav>
   <div class="tiles" id="tiles"></div>
 
   <section id="s-find">
     <h2>Co testy našly</h2>
     <p class="sub">Seskupeno podle důvodu. Selhání = kód udělá s pamětí, registry nebo skoky něco jiného, než má.</p>
     <ul class="findings" id="findings"></ul>
+  </section>
+
+  <section id="s-expr">
+    <h2>Výrazy: strom a výsledek</h2>
+    <p class="sub">Text výrazu → <code>parseBT</code> (strom podle <code>operatorToLevel</code>) → <code>createBinary</code> → spuštění. Referenční parser v testech má vlastní tabulku priorit (jako v C: <code>* /</code> &gt; <code>+ -</code> &gt; <code>&lt; &gt; =&lt; =&gt;</code> &gt; <code>== =!</code> &gt; <code>&amp;</code> &gt; <code>|</code>, zleva doprava) a počítá i velikosti mezivýsledků. Kontroluje se tvar stromu, hodnota, SP a že kód za výrazem proběhne.</p>
+    <h3>Každá dvojice operátorů: <code>7 op₁ 5 op₂ 3</code></h3>
+    <p class="sub">Řádek = op₁, sloupec = op₂. Tady se nejlíp pozná priorita a asociativita.</p>
+    <div class="legend"><span><i class="c-pass"></i>✓ strom i hodnota</span><span><i class="c-fail"></i>S = špatný strom, H = špatná hodnota</span></div>
+    <div class="scroll"><table class="hm" id="pairsHm"></table></div>
+    <div class="detail" id="pairsDetail"></div>
+    <h3>Náhodné výrazy</h3>
+    <p class="sub">Řádek = co výraz obsahuje (každý řádek přidává k předchozímu), sloupec = počet binárních operátorů. Buňka = prošlo / celkem.</p>
+    <div class="scroll"><table class="hm" id="exprHm"></table></div>
+    <div class="detail" id="exprDetail"></div>
+  </section>
+
+  <section id="s-ops">
+    <h2>Aritmetika a logika nad libovolně velkými čísly</h2>
+    <p class="sub"><code>basicNode::evaluateOperator</code> → <code>addPlaces</code>, <code>substitudePlaces</code>, <code>multiplyPlaces</code>, <code>dividePlaces</code>, <code>logicalOperation</code>, <code>comparePlaces</code>. Operandy jsou znaménková čísla 1–4 B (okraje rozsahu + náhodné), výsledek se porovná s výpočtem v C++. Logické operace doplňují kratší operand nulami.</p>
+    <div class="scroll"><table class="hm" id="opsHm"></table></div>
+    <div class="detail" id="opsDetail"></div>
+    <h3>Cena: instrukce a kroky (stejně velké operandy)</h3>
+    <div class="scroll" id="opsCost"></div>
   </section>
 
   <section id="s-calls">
@@ -177,8 +200,7 @@ ul.assume { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); }
     <h3>SP během běhu (SP − SP na začátku, pro SP 0x1000)</h3>
     <p class="sub">Každé volání posune SP na rámec funkce a návrat ho má vrátit. Správný běh končí na 0.</p>
     <div class="multiples" id="spCharts"></div>
-    <h3>Rámce funkcí (offset vůči SP uvnitř funkce)</h3>
-    <div id="frames"></div>
+    <details><summary>Rámce funkcí (offset vůči SP uvnitř funkce)</summary><div id="frames"></div></details>
   </section>
 
   <section id="s-paths">
@@ -222,7 +244,7 @@ ul.assume { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); }
 
   <section id="s-mut">
     <h2>Mutační test: jsou testy dost citlivé?</h2>
-    <p class="sub">Z <code>memoryManagment/</code> se vždy smaže jeden řádek a testy se pustí znovu. Zabitý = aspoň jeden test dopadl jinak než u původního kódu.</p>
+    <p class="sub">Z <code>memoryManagment/*</code>, <code>syntaxOperations.cpp</code> a <code>syntaxAnalyzer.cpp</code> se vždy smaže jeden řádek a testy se pustí znovu. Zabitý = aspoň jeden test dopadl jinak než u původního kódu.</p>
     <div id="mutants"></div>
   </section>
 
@@ -263,13 +285,20 @@ function codeListing(r, labels = {}) {
     (labels[i] ? `<div class="lbl">${esc(labels[i])}:</div>` : '') +
     `<div class="${errLines.has(i) ? 'err' : ''}"><span class="ln">${i}</span>${esc(clean(c))}</div>`).join('') + '</div>';
 }
+const REGN = ['R0','R1','R2','R3','R4','R5','R6','R7','signReg1','signReg2','RNone','LACI','LACO','LC','LSkip','LShiftLow'];
+const regVal = (i, v) => i >= 11 ? String(v) : hex(v);
 function traceTable(r) {
   if (!r.trace || !r.trace.length) return '';
-  let t = `<details${r.trace.length < 40 ? ' open' : ''}><summary>Trasa (${r.trace.length} kroků)</summary><div class="tracebox"><table class="tbl mono trace"><tr><th>krok</th><th>řádek</th><th>instrukce</th>${[1,2,3,4,5].map(i => `<th>R${i}${i === 3 ? ' (SP)' : ''}</th>`).join('')}<th>zápisy do RAM</th></tr>`;
-  t += `<tr><td class="meta">start</td><td></td><td></td>${[1,2,3,4,5].map(i => `<td>${hex(r.regsBefore[i])}</td>`).join('')}<td></td></tr>`;
+  // jen registry, ktere se v trase meni (+ SP)
+  const used = new Set([3]);
+  let p0 = r.regsBefore;
+  for (const row of r.trace) { row.regs.forEach((v, i) => { if (v !== p0[i]) used.add(i); }); p0 = row.regs; }
+  const ids = [...used].sort((a, b) => a - b);
+  let t = `<details${r.trace.length < 40 ? ' open' : ''}><summary>Trasa (${r.trace.length} kroků${r.trace.length >= 600 ? ', zkráceno' : ''})</summary><div class="tracebox"><table class="tbl mono trace"><tr><th>krok</th><th>řádek</th><th>instrukce</th>${ids.map(i => `<th>${REGN[i]}${i === 3 ? ' (SP)' : ''}</th>`).join('')}<th>zápisy do RAM</th></tr>`;
+  t += `<tr><td class="meta">start</td><td></td><td></td>${ids.map(i => `<td>${regVal(i, r.regsBefore[i])}</td>`).join('')}<td></td></tr>`;
   let prev = r.regsBefore;
   r.trace.forEach((row, k) => {
-    const regs = [1,2,3,4,5].map(i => `<td${row.regs[i] !== prev[i] ? ' style="font-weight:700"' : ' class="meta"'}>${hex(row.regs[i])}</td>`).join('');
+    const regs = ids.map(i => `<td${row.regs[i] !== prev[i] ? ' style="font-weight:700"' : ' class="meta"'}>${regVal(i, row.regs[i])}</td>`).join('');
     const wr = row.writes.map(([a, b, v]) => `${hex(a)}: ${hex(b, 2)}→${hex(v, 2)}`).join(', ');
     t += `<tr><td class="meta">${k}</td><td class="meta">${row.pc}</td><td>${esc(clean(r.code[row.pc] || ''))}</td>${regs}<td>${wr}</td></tr>`;
     prev = row.regs;
@@ -335,7 +364,13 @@ const cnt = (v, st) => v.filter(r => r.status === st).length;
 
 // ---------- tiles
 (function () {
+  const ex = R.expr, exT = ex.cells.reduce((a, c) => (a.pass += c.pass, a.fail += c.fail, a), {pass: 0, fail: 0});
+  const exPairs = ex.pairs.filter(c => !c.fail).length, exShape = ex.pairs.filter(c => c.shapeFail).length;
+  const opT = R.ops.cells.reduce((a, c) => (a.pass += c.pass, a.fail += c.fail, a), {pass: 0, fail: 0});
   const t = [
+    ['Dvojice operátorů', `${exPairs} / ${ex.pairs.length}`, exShape ? `${exShape}× špatný strom` : (exPairs === ex.pairs.length ? 'vše prošlo' : 'strom vždy správně'), exPairs === ex.pairs.length ? 'pass' : 'fail'],
+    ['Náhodné výrazy', `${exT.pass.toLocaleString('cs')} / ${(exT.pass + exT.fail).toLocaleString('cs')}`, exT.fail ? `${exT.fail} selhalo` : 'vše prošlo', exT.fail ? 'fail' : 'pass'],
+    ['Aritmetika', `${opT.pass.toLocaleString('cs')} / ${(opT.pass + opT.fail).toLocaleString('cs')}`, opT.fail ? `${opT.fail} selhalo` : 'vše prošlo', opT.fail ? 'fail' : 'pass'],
     ['Volání funkcí', `${cnt(R.calls, 'pass')} / ${R.calls.length}`, cnt(R.calls, 'fail') ? `${cnt(R.calls, 'fail')} selhalo` : 'vše prošlo', cnt(R.calls, 'fail') ? 'fail' : 'pass'],
     ['Cesty přes struktury', `${pathTotals.pass.toLocaleString('cs')} / ${(pathTotals.pass + pathTotals.fail).toLocaleString('cs')}`, pathTotals.fail ? `${pathTotals.fail} selhalo` : 'vše prošlo', pathTotals.fail ? 'fail' : 'pass'],
     ['copyFromTo', `${copyRes.length - cnt(copyRes, 'fail')} / ${copyRes.length}`, cnt(copyRes, 'fail') ? `${cnt(copyRes, 'fail')} selhalo` : 'vše prošlo', cnt(copyRes, 'fail') ? 'fail' : 'pass'],
@@ -363,11 +398,70 @@ const cnt = (v, st) => v.filter(r => r.status === st).length;
   for (const r of R.copy) if (r.status === 'fail') add(r.group, r.reason, 1, r.row);
   for (const r of R.scopes || []) if (r.status !== 'pass') add('scopy', r.reason, 1, r.layout, r.status);
   for (const f of R.copyFuzz) if (f.fail) add('fuzz copyFromTo', f.firstFail ? f.firstFail.reason : 'selhání', f.fail, f.row);
+  for (const c of R.ops.cells) for (const [reason, n] of c.reasons) add('aritmetika ' + R.ops.rows[c.row], reason, n, R.ops.rows[c.row] + ' ' + R.ops.cols[c.col]);
+  for (const c of R.expr.pairs) for (const [reason, n] of c.reasons) add('dvojice operátorů', reason, n, c.example.extra.src);
+  for (const c of R.expr.cells) for (const [reason, n] of c.reasons) add('výrazy · ' + R.expr.rows[c.row], reason, n, R.expr.cols[c.col]);
   const items = [...g.values()].sort((a, b) => (a.st === 'fail' ? 0 : 1) - (b.st === 'fail' ? 0 : 1) || b.n - a.n);
   $('findings').innerHTML = items.length ? items.map(x => {
     const w = [...x.where];
     return `<li>${badge(x.st)}<div><b>${esc(x.reason)}</b><br><span class="meta">${esc(x.suite)} · ${x.n}× · ${esc(w.slice(0, 5).join(', '))}${w.length > 5 ? ' … (' + w.length + ')' : ''}</span></div></li>`;
   }).join('') : `<li>${badge('pass')}<div>Nic. Všechny testy prošly.</div></li>`;
+})();
+
+// ---------- vyrazy
+function renderExpr(r, title) {
+  const e = r.extra, ok = b => b ? '✓' : '<b style="color:var(--bad)">✗</b>';
+  const labels = {};
+  labels[e.exprLines[0]] = 'výraz'; labels[e.exprLines[1]] = 'uložení výsledku + značka';
+  let side = `<b>Výraz</b><p class="mono" style="word-break:break-word">${esc(e.src)}</p>` +
+    (Object.keys(e.vars).length ? `<p class="meta mono">${Object.entries(e.vars).map(([k, v]) => `${k} = ${v}`).join(', ')}</p>` : '') +
+    `<table class="tbl mono"><tr><th></th><th>čekáno</th><th>je</th><th></th></tr>` +
+    `<tr><td style="font-family:system-ui">strom</td><td>${esc(e.expShape)}</td><td>${esc(e.gotShape)}</td><td>${ok(e.shapeOk)}</td></tr>` +
+    `<tr><td style="font-family:system-ui">hodnota</td><td>${esc(e.exp)} <span class="meta">(${e.expSize} B)</span></td><td>${esc(e.act)} <span class="meta">(${e.resSize} B)</span></td><td>${ok(e.valueOk)}</td></tr></table>` +
+    `<p class="meta">[] = závorka, call = volání funkce. ${e.steps} kroků.</p>`;
+  return renderResult(r, title, {labels, side});
+}
+(function () {
+  const ex = R.expr, ops = ex.ops;
+  const byP = new Map(ex.pairs.map(c => [c.row + '|' + c.col, c]));
+  heatmap($('pairsHm'), [{name: 'op₂', cols: ops}], ops.map(o => ({label: o})), (ri, ci) => {
+    const c = byP.get(ri + '|' + ci); if (!c) return null;
+    const e = c.example.extra, st = c.fail ? 'fail' : 'pass';
+    const txt = c.fail ? (e.shapeOk ? 'H' : 'S') : '✓';
+    return {st, txt, tip: `<code>${esc(e.src)}</code><br>strom: ${esc(e.gotShape)}${e.shapeOk ? '' : ' (čekáno ' + esc(e.expShape) + ')'}<br>hodnota: ${esc(e.act)}${e.valueOk ? '' : ' (čekáno ' + esc(e.exp) + ')'}`,
+      onClick: () => showDetail('pairsDetail', renderExpr(c.example, e.src))};
+  });
+  const byC = new Map(ex.cells.map(c => [c.row + '|' + c.col, c]));
+  heatmap($('exprHm'), [{name: 'počet operátorů', cols: ex.cols}], ex.rows.map(r => ({label: r})), (ri, ci) => {
+    const c = byC.get(ri + '|' + ci); if (!c) return null;
+    const st = c.fail ? 'fail' : 'pass';
+    return {st, wide: true, txt: `${c.pass}/${c.pass + c.fail}`, tip: `<b>${esc(ex.rows[ri])}</b> · ${esc(ex.cols[ci])}<br>${c.pass} prošlo, ${c.fail} selhalo${c.shapeFail ? ` (${c.shapeFail}× strom)` : ''}${c.reasons.length ? '<br>' + c.reasons.map(([r, n]) => esc(r) + ' (' + n + '×)').join('<br>') : ''}`,
+      onClick: () => showDetail('exprDetail', renderExpr(c.example, `${ex.rows[ri]} · ${ex.cols[ci]} · ${c.fail ? 'první selhání' : 'ukázka'}`))};
+  });
+})();
+
+// ---------- aritmetika
+(function () {
+  const O = R.ops, by = new Map(O.cells.map(c => [c.row + '|' + c.col, c]));
+  const groups = [1, 2, 3, 4].map(a => ({name: `A = ${a} B`, cols: [1, 2, 3, 4].map(b => `B ${b}`)}));
+  heatmap($('opsHm'), groups, O.rows.map(r => ({label: r})), (ri, ci) => {
+    const c = by.get(ri + '|' + ci); if (!c) return null;
+    const st = c.fail ? 'fail' : 'pass', ex = c.example.extra;
+    return {st, wide: true, txt: c.fail ? `✗ ${c.fail}` : `✓ ${c.pass}`,
+      tip: `<b>a ${esc(O.rows[ri])} b</b> · ${esc(O.cols[ci])}<br>${c.pass} prošlo, ${c.fail} selhalo${c.reasons.length ? '<br>' + c.reasons.map(([r, n]) => esc(r) + ' (' + n + '×)').join('<br>') : ''}<br><span class="meta">${c.instr} instrukcí, max ${c.steps.toLocaleString('cs')} kroků</span>`,
+      onClick: () => {
+        const e = c.example.extra;
+        const side = `<b>${esc(e.a)} ${esc(O.rows[ri])} ${esc(e.b)}</b><table class="tbl mono"><tr><th></th><th>hodnota</th></tr>` +
+          `<tr><td style="font-family:system-ui">čekáno</td><td>${esc(e.exp)}</td></tr><tr><td style="font-family:system-ui">je</td><td>${esc(e.act)} <span class="meta">(${e.resSize} B)</span></td></tr></table><p class="meta">${e.steps.toLocaleString('cs')} kroků</p>`;
+        showDetail('opsDetail', renderResult(c.example, `${O.rows[ri]} · ${O.cols[ci]} · ${c.fail ? 'první selhání' : 'ukázka'}`, {side}));
+      }};
+  });
+  let t = '<table class="tbl"><tr><th>operátor</th>' + [1, 2, 3, 4].map(n => `<th class="num">${n} B instr.</th>`).join('') + [1, 2, 3, 4].map(n => `<th class="num">${n} B kroků</th>`).join('') + '</tr>';
+  O.rows.forEach((op, ri) => {
+    const cs = [0, 5, 10, 15].map(ci => by.get(ri + '|' + ci));
+    t += `<tr><td class="mono">${esc(op)}</td>` + cs.map(c => `<td class="num">${c ? c.instr : '–'}</td>`).join('') + cs.map(c => `<td class="num">${c ? c.steps.toLocaleString('cs') : '–'}</td>`).join('') + '</tr>';
+  });
+  $('opsCost').innerHTML = t + '</table>';
 })();
 
 // ---------- volani

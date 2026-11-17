@@ -92,7 +92,7 @@ struct Program {
     // lokalni promenna v tele funkce (za parametry)
     variable *local(adapter::Function &f, std::string name, std::string type) {
         int off = adapter::allocVar(adapter::bodyFrame(f), adapter::typeSize(w, type), name);
-        return adapter::addVar(w, name, type, off, false);
+        return adapter::addVar(w, name, type, off, false, &f.fn->myVarHandlerer);  // patri do varHandle funkce
     }
 
     // volani z libovolneho ramce; args = promenna + cesta (napr. {pp, {"y"}} = pp.y); vrati offset vystupu
@@ -324,7 +324,7 @@ inline std::vector<Scenario> scenarios() {
              p.expect("r1 = h(a, b) = a (lokální l přežila volání f)", r1, 0x1111);
              p.expect("r2 = g(a, b) = b", r2, 0x2222);
          }},
-        {"výsledky volání jako argumenty", "g(x) = x;  first(x, y) = x;  second(x, y) = y;  r1 = first(g(a), g(b));  r2 = second(g(a), g(b))",
+        {"výsledky volání jako argumenty", "g(x) = x;  first(x, y) = x;  second(x, y) = y;  r1 = call first /_ call gid /_ a _/, call gid /_ b _/ _/;  r2 = call second /_ … _/",
          [](Program &p) {
              auto &g = p.fn("gid", {"gidx"}, {"number"}, {false}, "number");
              adapter::returnFrom(g, ret(p, "gidx", "number"), p.code);
@@ -337,14 +337,11 @@ inline std::vector<Scenario> scenarios() {
              auto *b = p.var("b", "number", 0x0B0B);
              auto *r1 = p.var("r1", "number", 0);
              auto *r2 = p.var("r2", "number", 0);
-             int k = 0;
-             for (auto [fn, r] : {std::pair{&first, r1}, std::pair{&second, r2}}) {
-                 auto *t1 = p.named("tmpA" + num(k), "number", p.call(p.main, g, {{a, {}}}));
-                 auto *t2 = p.named("tmpB" + num(k), "number", p.call(p.main, g, {{b, {}}}));
-                 int o = p.call(p.main, *fn, {{t1, {}}, {t2, {}}});
-                 adapter::copy({2, o, false, false, 1}, {2, r->localPointer0, false, false, 2}, p.code);
+             // primo text, jak ho napise programator: vystupy vnorenych volani jsou argumenty
+             for (auto [txt, r] : {std::pair{"call first /_ call gid /_ a _/, call gid /_ b _/ _/", r1}, std::pair{"call second /_ call gid /_ a _/, call gid /_ b _/ _/", r2}}) {
+                 place o = adapter::evalExpr(p.main, txt, p.w, p.code);
+                 adapter::copy({2, o.pointer, false, false, 1}, {2, r->localPointer0, false, false, 2}, p.code);
                  p.main.endLine();
-                 k++;
              }
              p.expect("r1 = first(g(a), g(b)) = a", r1, 0x0A0A);
              p.expect("r2 = second(g(a), g(b)) = b", r2, 0x0B0B);
@@ -567,7 +564,7 @@ inline std::vector<Result> runAll() {
             sim::Machine m;
             std::mt19937 rr(seed++);
             for (auto &b : m.ram) b = rr() & 0xFF;
-            for (auto &x : m.reg) x = rr() & 0xFFFF;
+            m.randomizeRegs(rr);
             m.reg[3] = sp0;
             r.regsBefore = m.reg;
             m.recordTrace = true;

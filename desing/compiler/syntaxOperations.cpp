@@ -23,13 +23,6 @@ void loadAddr16(int locPointer, fullCompiledCode &code, std::string toWhere) {
 }
 
 
-void cleanPlace(place cleaningRealm, fullCompiledCode &code) {
-    for (int i = 0; i < cleaningRealm.size; i++) {
-        setRamLocal(0, cleaningRealm.pointer + i, 1, code);
-    }
-}
-
-
 void goThroughCarrying(int fromPos, int sizer, fullCompiledCode &code) {
     for (int i = 0; i < sizer; i++) {
         code.addInstruction(asmSyntax.addRegNoCarry + asmSyntax.regStackPointer + std::to_string(fromPos + i) + asmSyntax.reg0);
@@ -434,8 +427,11 @@ void dividePlaces(place numA, place numB, place placeTo, fullCompiledCode &code,
         code.addInstruction(asmSyntax.jumpDictate);
         cleanPlace(testingPlace, code);
         copyFromTo(numA, testingPlace, code, true);
-        code.addInstruction(asmSyntax.movRegReg + asmSyntax.reg7 + asmSyntax.reg2);
-        code.addInstruction(asmSyntax.shiftLowBy1 + asmSyntax.reg2 + asmSyntax.reg7);
+        code.addInstruction(asmSyntax.setReg + asmSyntax.reg2 + "0");
+        code.addInstruction(asmSyntax.shiftLowBy1 + asmSyntax.reg7 + asmSyntax.reg2);
+        //reg7 = nova maska, reg2 = 1 kdyz je maska uz 0 (=> konec smycky)
+        code.addInstruction(asmSyntax.movRegReg + asmSyntax.reg2 + asmSyntax.reg7);
+        code.addInstruction(asmSyntax.negateBit + asmSyntax.reg7 + asmSyntax.reg2);
         int skippingInstr2 = code.currentLine;
         code.addInstruction(asmSyntax.jumpDictate);
 
@@ -445,10 +441,14 @@ void dividePlaces(place numA, place numB, place placeTo, fullCompiledCode &code,
         code.addInstruction(asmSyntax.or8 + asmSyntax.reg6 + asmSyntax.reg7 + asmSyntax.reg0);
         code.addInstruction(asmSyntax.movRegReg + asmSyntax.reg0 + asmSyntax.reg6);
 
-        code.addInstruction(asmSyntax.movRegReg + asmSyntax.reg7 + asmSyntax.reg2);
-        code.addInstruction(asmSyntax.shiftLowBy1 + asmSyntax.reg2 + asmSyntax.reg7);
+        code.addInstruction(asmSyntax.setReg + asmSyntax.reg2 + "0");
+        code.addInstruction(asmSyntax.shiftLowBy1 + asmSyntax.reg7 + asmSyntax.reg2);
+        //reg7 = nova maska, reg2 = 1 kdyz je maska uz 0 (=> konec smycky)
+        code.addInstruction(asmSyntax.movRegReg + asmSyntax.reg2 + asmSyntax.reg7);
+        code.addInstruction(asmSyntax.negateBit + asmSyntax.reg7 + asmSyntax.reg2);
         code.changeBackFunq(asmSyntax.jumpDictate + std::to_string(code.currentLine), skippingInstr2);
         code.addInstruction(asmSyntax.movRegReg + asmSyntax.reg2 + asmSyntax.skippingLatch);
+
         code.addInstruction(asmSyntax.jumpDictate + std::to_string(startPos));
 
         if (i < placeTo.size) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mutacni test: overuje, ze testy opravdu neco chytaji.
 
-Ze souboru v memoryManagment/ postupne vyhodi jeden radek (instrukci, posun offsetu, return, ...),
+Ze souboru kompilatoru postupne vyhodi jeden radek (instrukci, posun offsetu, return, ...),
 prelozi testy proti teto rozbite kopii a porovna vysledky s puvodnim kodem.
   zabity mutant  = aspon jeden test dopadl jinak (testy zmenu poznaly)
   prezivsi       = nikdo nic nepoznal -> mezera v testech, nebo ten radek nic nedela
@@ -19,7 +19,9 @@ from concurrent.futures import ThreadPoolExecutor
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, ".."))
 OUT = os.path.join(HERE, "out", "mutants")
-FILES = ["memoryOperations.cpp", "variables.cpp", "scopes.cpp", "functions.cpp"]
+LEXER = "--lexer" in sys.argv  # s tvym lexerem misto nahradniho
+FILES = ["memoryManagment/memoryOperations.cpp", "memoryManagment/variables.cpp", "memoryManagment/scopes.cpp",
+         "memoryManagment/functions.cpp", "syntaxOperations.cpp", "syntaxAnalyzer.cpp"]
 
 MUTABLE = [
     (re.compile(r"\baddInstruction\s*\("), "smazaná instrukce"),
@@ -37,6 +39,9 @@ def signature(path):
     sig = []
     for suite in ("copy", "calls", "scopes"):
         sig += [(suite, r["group"], r["row"], r["col"], r["status"], r["reason"]) for r in d[suite]]
+    sig += [("ops", c["row"], c["col"], c["pass"], c["fail"]) for c in d["ops"]["cells"]]
+    sig += [("expr-pair", c["row"], c["col"], c["pass"], c["fail"]) for c in d["expr"]["pairs"]]
+    sig += [("expr", c["row"], c["col"], c["pass"], c["fail"]) for c in d["expr"]["cells"]]
     sig += [("copyFuzz", f["row"], f["pass"], f["fail"]) for f in d["copyFuzz"]]
     sig += [("paths", c["shape"], c["col"], c["pass"], c["fail"]) for c in d["paths"]["cells"]]
     return sig
@@ -55,17 +60,22 @@ def build_and_run(root_dir, exe, result):
 
 
 def prepare_tree(dst):
+    # stejne jako run.sh: kopie stromu + nahradni lexer
     os.makedirs(os.path.join(dst, "memoryManagment"), exist_ok=True)
-    shutil.copy(os.path.join(ROOT, "syntax.cpp"), dst)
+    for f in os.listdir(ROOT):
+        if f.endswith(".cpp"):
+            shutil.copy(os.path.join(ROOT, f), dst)
     for f in os.listdir(os.path.join(ROOT, "memoryManagment")):
         shutil.copy(os.path.join(ROOT, "memoryManagment", f), os.path.join(dst, "memoryManagment"))
+    if not LEXER:
+        shutil.copy(os.path.join(HERE, "mock_lexer.cpp"), os.path.join(dst, "lexicalAnalyzer.cpp"))
 
 
 def run_mutant(idx, fname, lines, line_no, kind, base_sig):
     mdir = os.path.join(OUT, f"m{idx:03d}")
     prepare_tree(mdir)
     mutated = lines[:line_no] + ["// MUTANT: radek smazan\n"] + lines[line_no + 1:]
-    with open(os.path.join(mdir, "memoryManagment", fname), "w") as f:
+    with open(os.path.join(mdir, fname), "w") as f:
         f.writelines(mutated)
     sig = build_and_run(mdir, os.path.join(mdir, "tests"), os.path.join(mdir, "result.json"))
     info = {"file": fname, "line": line_no + 1, "code": lines[line_no].strip(), "kind": kind}
@@ -89,7 +99,7 @@ def main():
 
     targets = []
     for fname in FILES:
-        with open(os.path.join(ROOT, "memoryManagment", fname)) as f:
+        with open(os.path.join(ROOT, fname)) as f:
             lines = f.readlines()
         for i, ln in enumerate(lines):
             s = ln.strip()

@@ -54,7 +54,7 @@ struct Result {
     std::vector<Diff> diffs;
     int diffCount = 0;
     std::set<int> regsWritten;
-    std::array<uint16_t, 6> regsBefore{};
+    std::array<uint16_t, sim::NREG> regsBefore{};
     std::vector<sim::TraceRow> trace;
     std::string extra = "{}";  // data specificka pro sadu (JSON objekt)
 
@@ -88,7 +88,11 @@ inline void takeRun(Result &r, const sim::Machine &m) {
     r.errors = m.errors;
     r.regsWritten = m.regsWritten;
     r.trace = m.trace;
-    if (!m.errors.empty()) r.fail("simulator: " + m.errors[0].msg);
+    if (!m.errors.empty()) {
+        std::string msg = m.errors[0].msg;
+        msg = msg.substr(0, msg.find(" (pc ="));  // aby se dalo seskupit podle duvodu
+        r.fail("simulator: " + msg);
+    }
 }
 
 inline std::string resultJson(const Result &r) {

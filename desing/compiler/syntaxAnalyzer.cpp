@@ -17,7 +17,36 @@ std::vector<place> prepareFnInput(int &textStartPos, basicFunction* funq, std::s
 
 //co jde chronologicky ve vypoctu driv ma vyssi prioritu: napr: nasobeni ma vyssi level nez scitani
 int operatorToLevel(operators oper) {
+    if (oper == operators::multiply || oper == operators::divade) {
+        return 6;
+    }
 
+    if (oper == operators::plus || oper == operators::remove) {
+        return 5;
+    }
+
+    if (oper == operators::bigger || oper == operators::lesser || oper == operators::ebig || oper == operators::esml) {
+        return 4;
+    }
+
+    if (oper == operators::equal || oper == operators::notEqual) {
+        return 3;
+    }
+
+    if (oper == operators::andOperator) {
+        return 2;
+    }
+
+    if (oper == operators::xorOperator) {
+        return 1;
+    }
+
+    if (oper == operators::orOperator) {
+        return 0;
+    }
+
+    //neznamy operator
+    return -1;
 }
 
 
@@ -114,7 +143,7 @@ struct basicNode {
         //1. pripravime inputy
         std::vector<place> places = prepareFnInput(textStartPos, funq, oneLine, code, segMan, vars, funqHandle);
         //2. pripravime output
-        int outputLoc = segMan.reqFreeSub(funq->outputType->getSize());
+        segMan.reqFreeSub(funq->outputType->getSize());
         jumpBy += funq->outputType->getSize();
         //3. pripravime jumpPlace
         int jumpPlace = segMan.reqFreeSub(addressSize);
@@ -131,6 +160,7 @@ struct basicNode {
 
         //6. ukoncime
         segMan.endFunq(code);
+        int outputLoc = segMan.reqFreeSub(funq->outputType->getSize());
 
         place returnPlace = {funq->outputType->getSize(), outputLoc, funq->outputType->isRef || preparedSpaceIsRef, false, inReg::reg1};
         if (singleOper == singleOperator::notOperBit) {
@@ -555,7 +585,7 @@ std::vector<place> prepareFnInput(int &textStartPos, basicFunction* funq, std::s
         textStartPos = separator.position;
     }
     //hledani ukonceni funkce -> )
-    goodBracket bracket = findEndBracket(oneLine, textStartPos);
+    goodBracket bracket = findFunqEndBrc(oneLine, textStartPos);
     if (!bracket.exists) {
         //chyba v ukonceni funkce
     }

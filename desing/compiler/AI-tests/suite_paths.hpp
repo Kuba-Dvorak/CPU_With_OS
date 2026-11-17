@@ -82,7 +82,7 @@ inline Outcome runOne(std::mt19937 &rng, uint32_t seed, std::map<std::string, MT
     sim::Machine m;
     std::mt19937 rr(seed);
     for (auto &b : m.ram) b = rr() & 0xFF;
-    for (auto &x : m.reg) x = rr() & 0xFFFF;
+    m.randomizeRegs(rr);
     int sp = 0x3000 + (rr() % 0x40) * 0x100 + (rr() % 0x100);
     m.reg[3] = sp;
 

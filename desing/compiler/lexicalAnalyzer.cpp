@@ -5,12 +5,39 @@ syntaxDefiners lexSyntax;
 syntaxForBT btSyntax;
 
 
-std::string loadOneLine(std::string &origCode) {
+struct goodLine {
+    bool exists;
+    std::string oneLine;
+    bool problem;
+};
+
+
+goodLine loadNextLine(std::string &origCode, int lastLine) {
+
+}
+
+
+typePart loadTypePart(std::string &oneLine) {
+
+}
+
+
+astNodeNames decideLineType(std::string &oneLine) {
 
 }
 
 
 std::vector<syntaxDefiners> loadNodes() {
+
+}
+
+
+goodBracket findSegmentStart(std::string &oneLine) {
+
+}
+
+
+goodBracket findSegmentEnd(std::string &oneLine) {
 
 }
 
@@ -65,6 +92,18 @@ goodBracket findStartBracket(std::string &lineCode, int startPosition) {
 goodBracket findEndBracket(std::string &lineCode, int startPosition) {
 
 }
+
+
+//hleda zavorku z funkce (dle lexical syntax)
+goodBracket findFunqStrBrc(std::string &lineCode, int startPosition) {
+
+}
+
+
+goodBracket findFunqEndBrc(std::string &lineCode, int startPosition) {
+
+}
+
 
 
 //operator ze syntaxForBT (2 znakove se musi testovat driv nez 1 znakove)

@@ -4,6 +4,8 @@
 #include <iostream>
 #include "suite_calls.hpp"
 #include "suite_copy.hpp"
+#include "suite_expr.hpp"
+#include "suite_ops.hpp"
 #include "suite_paths.hpp"
 #include "suite_scopes.hpp"
 
@@ -13,6 +15,9 @@ int main(int argc, char **argv) {
     std::string paths = suite_paths::runAll();
     std::vector<Result> calls = suite_calls::runAll();
     std::vector<Result> scopes = suite_scopes::runAll();
+    int opsFails = 0, opsTotal = 0, exprPairFails = 0, exprFails = 0, exprTotal = 0;
+    std::string ops = suite_ops::runAll(opsFails, opsTotal);
+    std::string expr = suite_expr::runAll(exprPairFails, exprFails, exprTotal);
 
     auto count = [](const std::vector<Result> &v, const char *st) {
         int n = 0;
@@ -25,14 +30,18 @@ int main(int argc, char **argv) {
     for (size_t i = 0; (i = copyFuzz.find(",\"fail\":", i)) != std::string::npos; i += 8) copyFuzzFails += std::atoi(copyFuzz.c_str() + i + 8);
 
     std::string o = "{\"copy\":" + arr(copy, resultJson) + ",\"copyFuzz\":" + copyFuzz + ",\"paths\":" + paths +
-                    ",\"calls\":" + arr(calls, resultJson) + ",\"scopes\":" + arr(scopes, resultJson) + "}";
+                    ",\"calls\":" + arr(calls, resultJson) + ",\"scopes\":" + arr(scopes, resultJson) + ",\"ops\":" + ops +
+                    ",\"expr\":" + expr + "}";
     if (argc > 1) std::ofstream(argv[1]) << o;
     else std::cout << o;
 
-    int fails = count(copy, "fail") + count(calls, "fail") + count(scopes, "fail") + pathFails + copyFuzzFails;
+    int fails = count(copy, "fail") + count(calls, "fail") + count(scopes, "fail") + pathFails + copyFuzzFails + opsFails +
+                exprPairFails + exprFails;
     std::cerr << "copy: " << copy.size() << " testů, " << count(copy, "fail") << " selhalo, fuzz " << copyFuzzFails << " selhalo\n"
               << "paths: " << pathFails << " selhalo\n"
               << "calls: " << calls.size() << " testů, " << count(calls, "fail") << " selhalo\n"
-              << "scopes: " << scopes.size() << " kontrol, " << count(scopes, "fail") << " selhalo, " << count(scopes, "warn") << " varování\n";
+              << "scopes: " << scopes.size() << " kontrol, " << count(scopes, "fail") << " selhalo, " << count(scopes, "warn") << " varování\n"
+              << "ops: " << opsTotal << " výpočtů, " << opsFails << " selhalo\n"
+              << "expr: 144 dvojic operátorů, " << exprPairFails << " selhalo; " << exprTotal << " výrazů, " << exprFails << " selhalo\n";
     return fails ? 1 : 0;
 }

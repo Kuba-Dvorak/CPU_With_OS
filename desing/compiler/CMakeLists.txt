@@ -15,4 +15,5 @@ add_executable(compiler
         lexicalAnalyzer.cpp
         syntaxAnalyzer.cpp
         syntaxOperations.cpp
+        typeConstructor.cpp
 )

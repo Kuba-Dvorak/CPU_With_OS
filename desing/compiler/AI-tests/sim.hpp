@@ -1,17 +1,26 @@
 #pragma once
-// Referencni simulator ISA tak, jak ji pouziva kompilator (syntax.cpp + memoryManagment/*).
-// Spousti textove instrukce z fullCompiledCode::code vcetne skoku a zaznamenava RAM, registry a SP.
+// Referencni simulator ISA tak, jak ji pouziva kompilator (syntax.cpp, memoryManagment/*, syntaxOperations.cpp).
+// Spousti textove instrukce z fullCompiledCode::code vcetne skoku a zaznamenava RAM, registry a latche.
 //
 // PREDPOKLADY (pokud neco nesedi s tvym CPU, oprav to tady - vsechny testy se tim ridi):
-//   - registry R0..R5 jsou 16bitove; R0 je jen pro cteni; R3 = stack pointer, R4 = pomocny pro vypocty s SP, R5 = adresa skoku
+//   - registry R0..R7 jsou 16bitove; R3 = stack pointer, R4 = pomocny pro vypocty s SP; signReg1/2 jsou datove registry; RNone se cte jako 0
+//   - latche LACI/LACO (carry in/out), LC (vysledek porovnani), LSkip (preskoceni), LShiftLow (bit vysunuty shiftem) maji hodnotu 0/1
 //   - registr na miste RAM operandu = neprima adresa, napr. movRamRam R1 R2 kopiruje RAM[R1] -> RAM[R2]
-//   - mov*: 1. operand odkud, 2. operand kam;  set*: 1. operand kam, 2. operand co
-//   - add8 A B [C]: C = A + B (B je registr nebo cislo, bez C se vysledek zapise do A); pocita 16bitove, protoze se tim pocitaji adresy
-//   - rm8 A B [C]: totez s odcitanim
-//   - increment Rx: Rx = Rx + 1 (16 bit, primo v registru)
-//   - jump N / jumpReg Rx: absolutni skok na index instrukce (zatim radky, bez *5); konec programu = skok za posledni instrukci
-//   - *16 instrukce: little endian (dolni bajt na nizsi adrese)
-//   - adresa 0 je rezervovana (ramOutOkBit), pristup na ni je chyba
+//   - mov*: 1. operand odkud, 2. operand kam;  set*: 1. operand kam, 2. operand co;  aritmetika: co1, co2, kam (bez "kam" se pise do co1)
+//   - addNoC A B C: C = A + B, 16 bit, bez carry (pouziva se na adresy)
+//   - addReg8 A B C: C = (A + B + LACI) & 0xFF, LACO = preteceni z 8 bitu;  addReg16: totez v 16 bitech (taky bere LACI a nastavuje LACO)
+//   - rm8 A B C: C = A - B, 16 bit, bez carry (pouziva se na SP)
+//   - mut8 A B C: C = (A & 0xFF) * (B & 0xFF), 16bitovy vysledek, bez znamenka
+//   - neg8 A B: B = ~A & 0xFF;  neg16: totez 16 bit;  neg1 A B: B = (A == 0 ? 1 : 0)
+//   - and8 / or8 / xorReg A B C: C = (A op B) & 0xFF
+//   - setBySign8 A B: B = nejvyssi bit dolniho bajtu A ? 0xFF : 0x00 (znamenkove rozsireni)
+//   - cmpEqual A: LC = (A & 0xFF) == 0;  cmpSign A: LC = nejvyssi bit dolniho bajtu A
+//   - shiftL1 A B: bity 0..6 B = bity 1..7 A, bit 7 B se NEMENI, LShiftLow = nejnizsi bit A  (potvrzeno 15.11.)
+//   - putTo A: bit 7 A = LShiftLow (nastavi 0 i 1, ostatni bity beze zmeny)
+//   - increment A [B]: B = A + 1 (16 bit), bez B primo v A
+//   - LSkip = 1: dalsi instrukce se preskoci a LSkip se vynuluje
+//   - jump N / jumpReg A: absolutni skok na index instrukce (zatim radky, bez *5); konec programu = skok za posledni instrukci
+//   - *16 instrukce: little endian (dolni bajt na nizsi adrese); adresa 0 je rezervovana, pristup na ni je chyba
 #include <array>
 #include <cstdint>
 #include <set>
@@ -21,6 +30,12 @@
 
 namespace sim {
 
+// indexy registru a latchu (0..7 = R0..R7, aby m.reg[3] byl SP)
+enum Reg { SIGN1 = 8, SIGN2 = 9, RNONE = 10, LACI = 11, LACO = 12, LC = 13, LSKIP = 14, LSHIFT = 15, NREG = 16 };
+inline const char *REG_NAMES[NREG] = {"R0",   "R1",   "R2",   "R3",   "R4", "R5",    "R6",    "R7",
+                                      "signReg1", "signReg2", "RNone", "LACI", "LACO", "LC", "LSkip", "LShiftLow"};
+inline bool isLatch(int r) { return r >= LACI; }
+
 struct RamWrite {
     uint16_t addr;
     uint8_t before;
@@ -29,7 +44,7 @@ struct RamWrite {
 
 struct TraceRow {
     int pc;
-    std::array<uint16_t, 6> regs;  // po provedeni
+    std::array<uint16_t, NREG> regs;  // po provedeni
     std::vector<RamWrite> writes;
 };
 
@@ -42,10 +57,11 @@ struct Error {
 class Machine {
 public:
     std::array<uint8_t, 65536> ram{};
-    std::array<uint16_t, 6> reg{};
+    std::array<uint16_t, NREG> reg{};
     std::vector<Error> errors;
     std::vector<TraceRow> trace;
     bool recordTrace = false;
+    size_t maxTrace = 4000;
     std::set<int> regsWritten;
     std::vector<RamWrite> allWrites;
     int steps = 0;
@@ -56,6 +72,12 @@ public:
     void write16(int a, uint16_t v) {
         ram[a & 0xFFFF] = v & 0xFF;
         ram[(a + 1) & 0xFFFF] = v >> 8;
+    }
+    // nahodne registry + latche 0/1 (tak, jak muzou zustat po predchozim kodu, napr. carry LACI)
+    template <class Rng> void randomizeRegs(Rng &rng) {
+        for (int i = 0; i < NREG; i++) reg[i] = isLatch(i) ? rng() & 1 : rng() & 0xFFFF;
+        reg[RNONE] = 0;
+        reg[LSKIP] = 0;  // LSkip se po pouziti vzdy vynuluje, na zacatku kodu tedy byva 0
     }
 
     // spusti od radku 0, dokud pc nevyjede za konec kodu
@@ -72,8 +94,12 @@ public:
             }
             curWrites.clear();
             int next = pc + 1;
-            if (!exec(pc, code[pc], next)) return false;
-            if (recordTrace) trace.push_back({pc, reg, curWrites});
+            if (reg[LSKIP]) {
+                reg[LSKIP] = 0;  // preskocena instrukce se neprovede
+            } else if (!exec(pc, code[pc], next)) {
+                return false;
+            }
+            if (recordTrace && trace.size() < maxTrace) trace.push_back({pc, reg, curWrites});
             pc = next;
         }
         halted = true;
@@ -100,6 +126,7 @@ private:
         }
         return tok[pos++];
     }
+    bool more() const { return pos < tok.size(); }
 
     static bool isInt(const std::string &s) {
         if (s.empty()) return false;
@@ -111,7 +138,8 @@ private:
     }
 
     static int regOf(const std::string &t) {
-        if (t.size() == 2 && t[0] == 'R' && t[1] >= '0' && t[1] <= '5') return t[1] - '0';
+        for (int i = 0; i < NREG; i++)
+            if (t == REG_NAMES[i]) return i;
         return -1;
     }
 
@@ -168,14 +196,17 @@ private:
     }
 
     void setReg(int r, int v) {
-        if (r == 0) {
-            fail("zapis do R0 (je jen pro cteni)");
+        if (bad) return;
+        if (r == RNONE) {
+            fail("zapis do RNone");
             return;
         }
-        if (bad) return;
-        reg[r] = v & 0xFFFF;
+        reg[r] = isLatch(r) ? (v != 0) : (v & 0xFFFF);
         regsWritten.insert(r);
     }
+
+    // aritmetika "co1 co2 [kam]": vrati cil (bez kam = co1)
+    int dest(int a) { return more() ? parseReg() : a; }
 
     bool exec(int line, const std::string &text, int &nextPc) {
         tok.clear();
@@ -195,7 +226,10 @@ private:
             int r = parseReg();
             int v = parseValue();
             setReg(r, v);
-        } else if (op == "movRegReg" || op == "movRegReg16") {
+        } else if (op == "movRegReg") {
+            int a = parseReg(), b = parseReg();
+            setReg(b, reg[a] & 0xFF);
+        } else if (op == "movRegReg16") {
             int a = parseReg(), b = parseReg();
             setReg(b, reg[a]);
         } else if (op == "movRamReg") {
@@ -229,24 +263,69 @@ private:
             wr(a, v & 0xFF);
             wr(a + 1, (v >> 8) & 0xFF);
         } else if (op == "increment") {
-            int r = parseReg();
-            setReg(r, reg[r] + 1);
-        } else if (op == "add8" || op == "rm8") {
+            int a = parseReg();
+            setReg(dest(a), reg[a] + 1);
+        } else if (op == "addNoC" || op == "rm8") {
             int a = parseReg();
             int b = parseRegOrValue();
-            int dst = a;
-            if (pos < tok.size()) dst = parseReg();
-            int v = op == "add8" ? reg[a] + b : reg[a] - b;
-            setReg(dst, v);
+            int d = dest(a);
+            setReg(d, op == "addNoC" ? reg[a] + b : reg[a] - b);
+        } else if (op == "addReg8") {
+            int a = parseReg();
+            int b = parseRegOrValue();
+            int d = dest(a);
+            int s = (reg[a] & 0xFF) + (b & 0xFF) + reg[LACI];
+            setReg(d, s & 0xFF);
+            setReg(LACO, s > 0xFF);
+        } else if (op == "addReg16") {
+            int a = parseReg();
+            int b = parseRegOrValue();
+            int d = dest(a);
+            int s = reg[a] + (b & 0xFFFF) + reg[LACI];
+            setReg(d, s & 0xFFFF);
+            setReg(LACO, s > 0xFFFF);
+        } else if (op == "mut8") {
+            int a = parseReg(), b = parseReg();
+            int d = dest(a);
+            setReg(d, (reg[a] & 0xFF) * (reg[b] & 0xFF));
+        } else if (op == "neg8" || op == "neg16" || op == "neg1") {
+            int a = parseReg();
+            int d = dest(a);
+            int v = op == "neg8" ? ~reg[a] & 0xFF : op == "neg16" ? ~reg[a] & 0xFFFF : reg[a] == 0;
+            setReg(d, v);
+        } else if (op == "and8" || op == "or8" || op == "xorReg") {
+            int a = parseReg();
+            int b = parseRegOrValue();
+            int d = dest(a);
+            int v = op == "and8" ? reg[a] & b : op == "or8" ? reg[a] | b : reg[a] ^ b;
+            setReg(d, v & 0xFF);
+        } else if (op == "setBySign8") {
+            int a = parseReg(), b = parseReg();
+            setReg(b, (reg[a] & 0x80) ? 0xFF : 0x00);
+        } else if (op == "cmpEqual") {
+            int a = parseReg();
+            setReg(LC, (reg[a] & 0xFF) == 0);
+        } else if (op == "cmpSign") {
+            int a = parseReg();
+            setReg(LC, (reg[a] & 0x80) != 0);
+        } else if (op == "shiftL1") {
+            int a = parseReg(), b = parseReg();
+            int v = reg[a];
+            setReg(LSHIFT, v & 1);
+            setReg(b, (reg[b] & 0x80) | ((v & 0xFF) >> 1));
+        } else if (op == "putTo") {
+            int a = parseReg();
+            setReg(a, (reg[a] & 0xFF7F) | (reg[LSHIFT] << 7));
         } else if (op == "jump") {
-            nextPc = parseValue();
+            if (!more()) fail("skok bez cile (nedoplneny jump)");
+            else nextPc = parseValue();
         } else if (op == "jumpReg") {
             nextPc = reg[parseReg()];
         } else {
             fail("instrukce '" + op + "' neni v simulatoru (zatim) podporovana");
         }
 
-        if (!bad && pos < tok.size()) fail("prebyvajici operand '" + tok[pos] + "'");
+        if (!bad && more()) fail("prebyvajici operand '" + tok[pos] + "'");
         return !bad;
     }
 };

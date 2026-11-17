@@ -1,11 +1,11 @@
 #pragma once
 // Jedine misto, kde se testy dotykaji kodu kompilatoru.
 // Kdyz pri prepisu zmenis jmena nebo parametry, uprav jen tenhle soubor.
-// Include jde pres -I.. (mutate.py podstrci -I na upravenou kopii).
+// Include jde pres -Ibuild/stage (kopie stromu s nahradnim lexerem, viz run.sh; mutate.py podstrci svou kopii).
 #include <string>
 #include <utility>
 #include <vector>
-#include "memoryManagment/functions.cpp"
+#include "syntaxAnalyzer.cpp"
 
 namespace adapter {
 
@@ -42,6 +42,7 @@ struct Field {
 struct World {
     typesHandle types;
     varHandle vars;
+    functionHandle funcs;
 };
 
 inline void defineNumber(World &w, int size) {
@@ -57,9 +58,10 @@ inline void defineStruct(World &w, std::string name, const std::vector<Field> &f
 
 inline int typeSize(World &w, std::string name) { return w.types.findType(name)->size; }
 
-inline variable *addVar(World &w, std::string name, std::string type, int localOffset, bool isRef) {
-    w.vars.addNewVariable(name, w.types.findType(type), localOffset, isRef);
-    return w.vars.returnVar(name);
+inline variable *addVar(World &w, std::string name, std::string type, int localOffset, bool isRef, varHandle *into = nullptr) {
+    varHandle &h = into ? *into : w.vars;
+    h.addNewVariable(name, w.types.findType(type), localOffset, isRef);
+    return h.returnVar(name);
 }
 
 // zkopiruje promennou (s cestou keys) do whereTo
@@ -78,49 +80,111 @@ inline void writeVar(variable *v, std::vector<std::string> keys, const Place &wh
 
 using Frame = segmentManager;
 
-inline void openScope(Frame &f) { f.createNewScope(); }
+// obycejny scope (ne if / cyklus) zadny kod negeneruje
+inline void openScope(Frame &f) {
+    fullCompiledCode none;
+    f.createNewScope(false, false, none);
+}
 inline int allocVar(Frame &f, int size, std::string name) { return f.reqFreeForVar(size, name); }
 inline int allocTemp(Frame &f, int size) { return f.reqFreeSub(size); }
-inline void closeScope(Frame &f, World &w) { f.stopCurScope(w.vars); }
+// promenne ramce: telo funkce ma vlastni varHandle (basicFunction::myVarHandlerer), hlavni program w.vars
+inline varHandle &varsOf(Frame &f, World &w) {
+    for (auto &fn : w.funcs.functionList)
+        if (&fn.mySegmentManager == &f) return fn.myVarHandlerer;
+    return w.vars;
+}
+inline void closeScope(Frame &f, World &w) {
+    fullCompiledCode none;
+    f.stopCurScope(varsOf(f, w), none);
+}
 inline void endLine(Frame &f) { f.endLine(); }
 inline variable *findVar(World &w, std::string name) { return w.vars.returnVar(name); }
 
 struct Function {
-    basicFunction fn;
+    basicFunction *fn = nullptr;  // lezi ve World::funcs, aby ji nasel "call jmeno /_ ... _/"
     std::vector<std::string> paramNames;
+    std::vector<bool> paramRefs;
 };
 
 inline void defineFunction(Function &f, std::string name, std::vector<std::string> paramNames,
                            std::vector<std::string> paramTypes, std::vector<bool> paramRefs, std::string outType,
                            World &w, fullCompiledCode &code) {
     f.paramNames = paramNames;
-    std::vector<bool> refs = paramRefs;
-    f.fn.define(name, refs, paramNames, paramTypes, w.vars, outType, w.types, code);
+    f.paramRefs = paramRefs;
+    w.funcs.functionList.emplace_back();
+    f.fn = &w.funcs.functionList.back();
+    f.fn->define(name, paramRefs, paramNames, paramTypes, outType, false, w.types, code);
 }
 
-inline Frame &bodyFrame(Function &f) { return f.fn.mySegmentManager; }
-inline std::vector<variable *> &inputs(Function &f) { return f.fn.inputsInner; }
-inline int startLine(Function &f) { return f.fn.jumpToFunction; }
+inline Frame &bodyFrame(Function &f) { return f.fn->mySegmentManager; }
+inline std::deque<variable *> &inputs(Function &f) { return f.fn->inputsInner; }
+inline int startLine(Function &f) { return f.fn->jumpToFunction; }
 
 // offset parametru v ramci funkce (vuci SP uvnitr funkce)
-inline variable *param(World &w, std::string name) { return w.vars.returnVar(name); }
+// (jmena parametru jsou v testech unikatni, takze staci projit varHandle vsech funkci)
+inline variable *param(World &w, std::string name) {
+    for (auto &fn : w.funcs.functionList)
+        for (auto &v : fn.myVarHandlerer.varList)
+            if (v.name == name) return &v;
+    return w.vars.returnVar(name);
+}
 inline int paramOffset(World &w, std::string name) { return param(w, name)->localPointer0; }
 
-// cele volani z ramce caller; vrati offset vystupu funkce v ramci caller
-inline int callFunction(Frame &caller, Function &f, std::vector<std::pair<variable *, std::vector<std::string>>> args,
-                        World &w, fullCompiledCode &code) {
-    int outOffset = caller.reqFreeSub(0);
-    std::vector<passerPair> in;
-    for (auto &a : args) in.push_back({a.first, a.second});
-    // parametry podle jmena: nezavisle na inputsInner, aby test nekopiroval to, co testuje
-    std::vector<variable *> params;
-    for (auto &n : f.paramNames) params.push_back(w.vars.returnVar(n));
-    caller.callDiffFunq(code, f.fn.outputType, in, params, addressSize);
-    f.fn.getCalled(code);
-    caller.endFunq(code, f.fn.outputType, params, addressSize);
-    return outOffset;
+// text argumentu: jmeno[.klic...], u referencniho parametru s "$" (preda se adresa, ne kopie)
+inline std::string argText(variable *v, const std::vector<std::string> &keys, bool asPointer) {
+    std::string t = (asPointer ? btSyntax.isPointerSign : "") + v->name;
+    for (auto &k : keys) t += btSyntax.keyingSymbol + k;
+    return t;
 }
 
-inline void returnFrom(Function &f, const Place &what, fullCompiledCode &code) { f.fn.getReturnCMD(toPlace(what), code); }
+// cele volani z ramce caller pres skutecny basicNode::evaluateFn:
+// sestavi text "call f /_ a, $q, pp.y _/" a nechá ho zpracovat (prepareFnInput -> createParsedSegment -> parseBT).
+// Vrati offset vystupu funkce v ramci caller.
+inline std::string lastCallText;
+inline int callFunction(Frame &caller, Function &f, std::vector<std::pair<variable *, std::vector<std::string>>> args,
+                        World &w, fullCompiledCode &code) {
+    std::string line = lexSyntax.callFunq + " " + f.fn->name + " " + btSyntax.functionCallStart + " ";
+    for (size_t i = 0; i < args.size(); i++)
+        line += (i ? btSyntax.nextSign + " " : "") + argText(args[i].first, args[i].second, i < f.paramRefs.size() && f.paramRefs[i]);
+    line += " " + btSyntax.functionCallEnd;
+    lastCallText = line;
+    basicNode node;
+    node.myArType = nodeTypes::function;
+    node.funq = f.fn;
+    node.singleOper = singleOperator::noSingleOper;
+    node.nodeID = 0;
+    node.textPosition = 0;
+    node.textStartPos = (int)(line.find(btSyntax.functionCallStart) + btSyntax.functionCallStart.size());
+    place out = node.evaluateFn(code, caller, line, varsOf(caller, w), w.funcs);
+    return out.pointer;
+}
+
+inline void returnFrom(Function &f, const Place &what, fullCompiledCode &code) { f.fn->getReturnCMD(toPlace(what), code); }
+
+// ---------------------------------------------------------------- vyrazy (syntaxAnalyzer)
+
+// cely vyraz pres createParsedSegment (tak, jak ho vola kompilator); vrati place vysledku
+inline place evalExpr(Frame &f, std::string line, World &w, fullCompiledCode &code, std::string typeName = "number") {
+    int pos = 0;
+    return createParsedSegment(w.types.findType(typeName), f, pos, line, code, varsOf(f, w), w.funcs);
+}
+
+// jen parseBT s vlastnim seznamem uzlu, aby sel strom po sestaveni prohlednout (kod se vygeneruje taky)
+inline place parseTree(Frame &f, std::string line, World &w, fullCompiledCode &code, std::deque<basicNode> &nodes) {
+    int pos = 0, nextId = 0;
+    return parseBT(pos, line, code, f, nodes, nextId, varsOf(f, w), w.funcs);
+}
+
+// jeden operator nad dvema hotovymi place (basicNode::evaluateOperator)
+inline place evalOperator(operators op, Frame &f, const Place &a, const Place &b, fullCompiledCode &code) {
+    basicNode node;
+    node.myArType = nodeTypes::aritmo;
+    node.oper = op;
+    node.singleOper = singleOperator::noSingleOper;
+    ::place pa = toPlace(a), pb = toPlace(b);
+    return node.evaluateOperator(code, f, pa, pb);
+}
+
+inline int operatorLevel(operators op) { return operatorToLevel(op); }
 
 } // namespace adapter

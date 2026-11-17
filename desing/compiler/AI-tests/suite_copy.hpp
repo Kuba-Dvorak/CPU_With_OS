@@ -38,7 +38,7 @@ inline Result run(const Case &c, uint32_t seed, bool trace) {
     sim::Machine m;
     std::mt19937 rng(seed);
     for (auto &b : m.ram) b = rng() & 0xFF;
-    for (auto &x : m.reg) x = rng() & 0xFFFF;
+    m.randomizeRegs(rng);
     m.reg[3] = c.sp;
 
     int fromSlot = c.sp + c.fromOff, toSlot = c.sp + c.toOff;
@@ -166,7 +166,7 @@ inline std::vector<Result> runAll(std::string &fuzzOut) {
         sim::Machine m;
         std::mt19937 rr(seed++);
         for (auto &b : m.ram) b = rr() & 0xFF;
-        for (auto &x : m.reg) x = rr() & 0xFFFF;
+        m.randomizeRegs(rr);
         m.reg[3] = sp;
         r.regsBefore = m.reg;
         auto expected = m.ram;
