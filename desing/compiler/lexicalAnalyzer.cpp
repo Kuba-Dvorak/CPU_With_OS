@@ -12,17 +12,69 @@ struct goodLine {
 };
 
 
+struct goodFoundSegment {
+    bool exists;
+    int oneLinePos;
+};
+
+
+struct goodLoadedFunctionDefinition {
+    std::string funqName;
+    std::vector<std::string> inputNames;
+    std::vector<bool> inputRefs;
+    std::vector<std::string> inputTypes;
+    std::string outputType;
+    bool outputRef;
+};
+
+
+struct goodVarDecl {
+    std::string varName;
+    std::string varTypeName;
+    bool isRef;
+    int posibleSize = 1; //pro number typ, v Bajtech
+};
+
+
+struct goodVarSet {
+    std::string varName;
+    std::vector<std::string> keys;
+    bool changeOriginal;
+};
+
+
+goodVarSet loadVarSetter(std::string &oneLine) {
+
+}
+
+
+goodVarDecl loadVarDef(std::string &oneLine) {
+
+}
+
+
+goodLoadedFunctionDefinition loadDefFunq(std::string &oneLine) {
+
+}
+
+
+std::string loadTypeDefName(std::string &oneLine) {
+
+}
+
+
 goodLine loadNextLine(std::string &origCode, int lastLine) {
 
 }
 
 
-typePart loadTypePart(std::string &oneLine) {
+astNodeNames decideLineType(std::string &oneLine) {
 
 }
 
 
-astNodeNames decideLineType(std::string &oneLine) {
+//najde konstruktor / BT v 1 radku, POZOR NENI TO JENOM KONSTRUKTOR, muze to byt i BT, presneji, tohle je vlastne input do funkce createParsedSegment
+goodFoundSegment findSegmenter(std::string &oneLine) {
 
 }
 

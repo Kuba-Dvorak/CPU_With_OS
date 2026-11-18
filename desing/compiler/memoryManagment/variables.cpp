@@ -189,25 +189,33 @@ struct variable {
 
 struct typesHandle {
     std::deque<typee> typeList;
+    typee* currentlyCreatedType;
 
     void startCreatingNewType(std::string &name, int potSize = 0) {
         typeList.push_back({name});
+        currentlyCreatedType = &typeList.back();
         if (name == numType) {
             typeList.back().calculateSize(potSize);
         }
     }
 
-    void createPartNewType(std::string &paramType, std::string &key, bool isRef) {
-        typeList.back().params.push_back(findType(paramType));
-        typeList.back().isRef.push_back(isRef);
-        typeList.back().paramKeys.push_back(key);
+    void createPartNewType(std::string &paramType, std::string &key, bool isRef, int posSize = 1) {
+        currentlyCreatedType->params.push_back(findType(paramType, posSize));
+        currentlyCreatedType->isRef.push_back(isRef);
+        currentlyCreatedType->paramKeys.push_back(key);
     }
 
     void stopCreatingNewType() {
-        typeList.back().calculateSize();
+        currentlyCreatedType->calculateSize();
     }
 
-    typee* findType(std::string &key) {
+    typee* findType(std::string &key, int posSize = 2) {
+        //cislo jakekoliv velikosti
+        if (key == numType) {
+            typeList.push_back({numType});
+            typeList.back().calculateSize(posSize);
+            return &typeList.back();
+        }
         for (size_t i = 0; i < typeList.size(); i++) {
             if (typeList[i].name == key) {
                 return &typeList[i];

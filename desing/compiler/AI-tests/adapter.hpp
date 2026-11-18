@@ -45,22 +45,21 @@ struct World {
     functionHandle funcs;
 };
 
-inline void defineNumber(World &w, int size) {
-    std::string n = numType;
-    w.types.startCreatingNewType(n, size);
-}
+// cisla si findType vytvari samo podle velikosti (posSize); testy pouzivaji vsude cisla o NUMBER_SIZE B
+inline int NUMBER_SIZE = 2;
+inline void defineNumber(World &w, int size) { NUMBER_SIZE = size; }
 
 inline void defineStruct(World &w, std::string name, const std::vector<Field> &fields) {
     w.types.startCreatingNewType(name);
-    for (auto f : fields) w.types.createPartNewType(f.type, f.key, f.isRef);
+    for (auto f : fields) w.types.createPartNewType(f.type, f.key, f.isRef, NUMBER_SIZE);
     w.types.stopCreatingNewType();
 }
 
-inline int typeSize(World &w, std::string name) { return w.types.findType(name)->size; }
+inline int typeSize(World &w, std::string name) { return w.types.findType(name, NUMBER_SIZE)->size; }
 
 inline variable *addVar(World &w, std::string name, std::string type, int localOffset, bool isRef, varHandle *into = nullptr) {
     varHandle &h = into ? *into : w.vars;
-    h.addNewVariable(name, w.types.findType(type), localOffset, isRef);
+    h.addNewVariable(name, w.types.findType(type, NUMBER_SIZE), localOffset, isRef);
     return h.returnVar(name);
 }
 
@@ -83,7 +82,7 @@ using Frame = segmentManager;
 // obycejny scope (ne if / cyklus) zadny kod negeneruje
 inline void openScope(Frame &f) {
     fullCompiledCode none;
-    f.createNewScope(false, false, none);
+    f.createNewScope(false, false, none, {});
 }
 inline int allocVar(Frame &f, int size, std::string name) { return f.reqFreeForVar(size, name); }
 inline int allocTemp(Frame &f, int size) { return f.reqFreeSub(size); }
@@ -166,7 +165,7 @@ inline void returnFrom(Function &f, const Place &what, fullCompiledCode &code) {
 // cely vyraz pres createParsedSegment (tak, jak ho vola kompilator); vrati place vysledku
 inline place evalExpr(Frame &f, std::string line, World &w, fullCompiledCode &code, std::string typeName = "number") {
     int pos = 0;
-    return createParsedSegment(w.types.findType(typeName), f, pos, line, code, varsOf(f, w), w.funcs);
+    return createParsedSegment(w.types.findType(typeName, NUMBER_SIZE), f, pos, line, code, varsOf(f, w), w.funcs);
 }
 
 // jen parseBT s vlastnim seznamem uzlu, aby sel strom po sestaveni prohlednout (kod se vygeneruje taky)

@@ -172,10 +172,3 @@ struct goodSeparator {
     int position;
     bool exists;
 };
-
-
-struct typePart {
-    std::string name;
-    std::string typeOf;
-    bool isRef;
-};

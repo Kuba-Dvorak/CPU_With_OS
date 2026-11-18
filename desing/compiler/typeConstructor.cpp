@@ -3,9 +3,10 @@
 
 
 
-void createNewType(typesHandle &handle, std::string &originCode, std::string &name, int lastLine) {
+void createNewType(typesHandle &handle, std::string &originCode, std::string name, int &lastLine) {
     handle.startCreatingNewType(name, 0);
     while (true) {
+        lastLine += 1;
         goodLine oneLine = loadNextLine(originCode, lastLine);
         if (!oneLine.exists) {
             break;
@@ -13,8 +14,8 @@ void createNewType(typesHandle &handle, std::string &originCode, std::string &na
         if (findSegmentEnd(oneLine.oneLine).exists) {
             break;
         }
-        typePart oneTypePart = loadTypePart(oneLine.oneLine);
-        handle.createPartNewType(oneTypePart.typeOf, oneTypePart.name, oneTypePart.isRef);
+        goodVarDecl oneTypePart = loadVarDef(oneLine.oneLine);
+        handle.createPartNewType(oneTypePart.varTypeName, oneTypePart.varName, oneTypePart.isRef, oneTypePart.posibleSize);
     }
     handle.stopCreatingNewType();
 }

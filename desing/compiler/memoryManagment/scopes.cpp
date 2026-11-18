@@ -24,8 +24,10 @@ struct codeScope {
     }
 
     void destroy(varHandle &handle) {
-        for (size_t i = 0; i < scopeVars.size(); i++) {
-            handle.deleteVar(scopeVars[i]);
+        for (int i = scopeVars.size() - 1; i >= 0; i--) {
+            if (!handle.varList.empty() && handle.varList.back().name == scopeVars[i]) {
+                handle.varList.pop_back();
+            }
         }
     }
 };
@@ -127,7 +129,7 @@ struct segmentManager {
         return true;
     }
 
-    void createNewScope(bool isConditioned, bool isCycled, fullCompiledCode &code) {
+    void createNewScope(bool isConditioned, bool isCycled, fullCompiledCode &code, place conditionResultPlace) {
         if (curScopes.empty()) {
             curScopes.push_back({0, isConditioned, isCycled,code.currentLine, {}, {}});
         }
@@ -137,14 +139,12 @@ struct segmentManager {
 
         myCache.reset();
 
+
+        curScopes.back().startingJumpIndex = code.currentLine;
         if (isConditioned) {
-            curScopes.back().startingJumpIndex = code.currentLine;
-            place resultLocation = {}; //tady bude muset byt result z BT ktery je definovat u te kondice
-            //taky protoze je to od BT a je to od cache, tak to je v RAM (v cachi)
             code.addInstruction(asmSyntax.addRegNoCarry + asmSyntax.regStackPointer
-                + std::to_string(resultLocation.pointer) + asmSyntax.regStackOper);
-            code.addInstruction(asmSyntax.movRamReg + asmSyntax.regStackOper + asmSyntax.latchCompare);
-            code.addInstruction(asmSyntax.setReg + asmSyntax.skippingLatch + std::to_string(1));
+                + std::to_string(conditionResultPlace.pointer) + asmSyntax.regStackOper);
+            code.addInstruction(asmSyntax.movRamReg + asmSyntax.regStackOper + asmSyntax.skippingLatch);
             curScopes.back().breakPoses.push_back(code.currentLine);
             code.addInstruction(asmSyntax.jumpDictate); //tohle je na stopCurScope doplneno
         }
@@ -154,7 +154,7 @@ struct segmentManager {
         if (curScopes.back().cycled) {
             code.addInstruction(asmSyntax.jumpDictate + std::to_string(curScopes.back().startingJumpIndex));
         }
-        if (curScopes.back().conditioned || curScopes.back().cycled) {
+        if (curScopes.back().cycled || curScopes.back().conditioned) {
             for (int i = 0; i < curScopes.back().breakPoses.size(); i++) {
                 code.changeBackFunq(asmSyntax.jumpDictate + std::to_string(code.currentLine), curScopes.back().breakPoses[i]);
             }
