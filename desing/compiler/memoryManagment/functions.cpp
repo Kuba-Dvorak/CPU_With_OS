@@ -17,6 +17,7 @@ struct basicFunction {
     std::vector<std::string> emptyKeyList = {};
     int jumpToFunction;
     varHandle myVarHandlerer;
+    int changeBackerInstr;
 
     bool define(std::string name, std::vector<bool> &isReferences, std::vector<std::string> &varNames, std::vector<std::string> &varTypesNames
         , std::string &outPutTypeName, bool outputIsRef, typesHandle &handle, fullCompiledCode &code) {
@@ -27,6 +28,8 @@ struct basicFunction {
 
         this->name = name;
         mySegmentManager = {{}, {}};
+        changeBackerInstr = code.currentLine;
+        code.addInstruction(asmSyntax.jumpDictate);
         std::string returName = returnNamer + "Var";
         myVarHandlerer.addNewVariable(returName,  handle.findType(outPutTypeName),
             mySegmentManager.reqFreeForVar(handle.findType(outPutTypeName)->size, returName), outputIsRef);
@@ -80,6 +83,11 @@ struct basicFunction {
             absSize += inputsInner[i]->getSize();
         }
         return absSize;
+    }
+
+    //jumpBack aby se pri definici rovnou nevolal
+    void endDefinition(fullCompiledCode &code) {
+        code.changeBackFunq(asmSyntax.jumpDictate + std::to_string(code.currentLine), changeBackerInstr);
     }
 };
 

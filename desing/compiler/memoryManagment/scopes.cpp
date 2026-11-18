@@ -162,6 +162,13 @@ struct segmentManager {
         curScopes.back().destroy(handle);
         curScopes.pop_back();
     }
+
+    bool isLastScope() {
+        if (curScopes.size() == 1) {
+            return true;
+        }
+        return false;
+    }
 };
 
 
