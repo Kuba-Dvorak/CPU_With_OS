@@ -16,4 +16,5 @@ add_executable(compiler
         syntaxAnalyzer.cpp
         syntaxOperations.cpp
         typeConstructor.cpp
+        main.cpp
 )

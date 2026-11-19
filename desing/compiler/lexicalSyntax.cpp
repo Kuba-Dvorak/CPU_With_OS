@@ -36,6 +36,10 @@ struct syntaxDefiners {
     std::string typeSignature = "type"; //deklarace typu
     std::string functionSignature = "function"; //deklarace funkce
     std::string callFunq = "call"; //volani funkce
+    std::string breakSignature = "break"; //AI
+    std::string varSignature = "var"; //AI, deklarace promenne
+    std::string varTypeSeparator = ":"; //AI, oddeluje jmeno a typ v deklaraci promenne (var x: number;)
+    std::string setSignature = "="; //AI, prirazeni do promenne
 };
 
 
@@ -171,4 +175,42 @@ struct goodSingleOperator {
 struct goodSeparator {
     int position;
     bool exists;
+};
+
+
+struct goodLine {
+    bool exists;
+    std::string oneLine;
+    bool problem;
+};
+
+
+struct goodFoundSegment {
+    bool exists;
+    int oneLinePos;
+};
+
+
+struct goodLoadedFunctionDefinition {
+    std::string funqName;
+    std::vector<std::string> inputNames;
+    std::vector<bool> inputRefs;
+    std::vector<std::string> inputTypes;
+    std::string outputType;
+    bool outputRef;
+};
+
+
+struct goodVarDecl {
+    std::string varName;
+    std::string varTypeName;
+    bool isRef;
+    int posibleSize = 1; //pro number typ, v Bajtech
+};
+
+
+struct goodVarSet {
+    std::string varName;
+    std::vector<std::string> keys;
+    bool changeOriginal;
 };

@@ -118,7 +118,7 @@ struct compiler {
             currentFunctionList.back()->mySegmentManager.endLine();
             //chybejici strednik
             if (oneLine.problem) {
-                return {true, lineNum, -1, "Na konci radku ti chybi ukoncovac radku"};
+                return {true, lineNum, -1, "Na konci radku ti chybi ukoncovac radku "};
             }
 
             //konec programu
