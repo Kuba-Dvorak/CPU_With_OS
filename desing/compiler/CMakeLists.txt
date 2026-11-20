@@ -3,7 +3,9 @@ project(compiler)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(compiler
+# AI: soubory se navzajem includuji retezcem (main.cpp -> astGenerator.cpp -> ...),
+# takze se preklada jen main.cpp, ostatni jsou v projektu jen aby je videlo IDE
+set(includedSources
         syntax.cpp
         memoryManagment/memoryOperations.cpp
         memoryManagment/codeGenerator.cpp
@@ -16,5 +18,7 @@ add_executable(compiler
         syntaxAnalyzer.cpp
         syntaxOperations.cpp
         typeConstructor.cpp
-        main.cpp
 )
+set_source_files_properties(${includedSources} PROPERTIES HEADER_FILE_ONLY ON)
+
+add_executable(compiler main.cpp ${includedSources})

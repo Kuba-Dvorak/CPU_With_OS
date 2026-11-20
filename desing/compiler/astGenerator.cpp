@@ -69,9 +69,8 @@ struct compiler {
             goodLoadedFunctionDefinition funqInfo = loadDefFunq(oneLine.oneLine);
             funqHandler.functionList.push_back({});
             funqHandler.functionList.back().define(funqInfo.funqName, funqInfo.inputRefs, funqInfo.inputNames,
-                funqInfo.inputTypes, funqInfo.outputType, funqInfo.outputRef, typeHandler, compiledCode);
+                funqInfo.inputTypes, funqInfo.outputType, funqInfo.inputSizes, funqInfo.outputSize, funqInfo.outputRef,  typeHandler, compiledCode);
             currentFunctionList.push_back(&funqHandler.functionList.back());
-            currentFunctionList.back()->mySegmentManager.createNewScope(false, false, compiledCode, {});
         }
     }
 

@@ -10,7 +10,9 @@ syntaxForBT btSyntax;
 std::string loadName(std::string &lineCode, int startPosition);
 goodNumber findNumber(std::string &lineCode, int startPosition);
 goodBracket findStartBracket(std::string &lineCode, int startPosition);
+goodBracket findEndBracket(std::string &lineCode, int startPosition);
 goodBracket findFunqStrBrc(std::string &lineCode, int startPosition);
+goodBracket findFunqEndBrc(std::string &lineCode, int startPosition);
 goodSeparator findSeparator(std::string &lineCode, int startPosition);
 goodFoundSegment findSegmenter(std::string &oneLine);
 
@@ -53,7 +55,7 @@ goodVarSet loadVarSetter(std::string &oneLine) {
 
 
 //napsano pomoci AI
-//var JMENO: [$]TYP[(N)]; -> {JMENO, TYP, je tam $, N}, bez (N) je velikost 2 B
+//var JMENO [$]TYP[(N)]; -> {JMENO, TYP, je tam $, N}, bez (N) je velikost 2 B
 //stejne se ctou i pole typu (vola createNewType)
 goodVarDecl loadVarDef(std::string &oneLine) {
     goodVarDecl result = {"", "", false, 2};
@@ -68,14 +70,6 @@ goodVarDecl loadVarDef(std::string &oneLine) {
     }
     result.varName = loadName(oneLine, position);
     position += result.varName.length();
-    while (position < oneLine.length() && oneLine[position] == ' ') {
-        position += 1;
-    }
-
-    //dvojtecka mezi jmenem a typem
-    if (position < oneLine.length() && oneLine.substr(position, lexSyntax.varTypeSeparator.length()) == lexSyntax.varTypeSeparator) {
-        position += lexSyntax.varTypeSeparator.length();
-    }
     while (position < oneLine.length() && oneLine[position] == ' ') {
         position += 1;
     }
@@ -104,11 +98,10 @@ goodVarDecl loadVarDef(std::string &oneLine) {
 
 
 //napsano pomoci AI
-//function JMENO(P1, P2) [$]TYP {;   parametr je [$]TYP JMENO
-//parametry muzou byt v ( ) nebo v /_ _/ (v zadani je ( ), autor psal /_ _/)
-//number(N) v hlavicce funkce zatim neni, struktura pro to nema pole
+//function JMENO(P1, P2) [$]TYP[(N)] {;   parametr je [$]TYP[(N)] JMENO
+//(N) = velikost cisla v bajtech, bez (N) 2 B (u jinych typu nez number se ignoruje)
 goodLoadedFunctionDefinition loadDefFunq(std::string &oneLine) {
-    goodLoadedFunctionDefinition result = {"", {}, {}, {}, "", false};
+    goodLoadedFunctionDefinition result = {"", {}, {}, {}, "", false, {}, 2};
     int position = 0;
     while (position < oneLine.length() && oneLine[position] == ' ') {
         position += 1;
@@ -121,28 +114,24 @@ goodLoadedFunctionDefinition loadDefFunq(std::string &oneLine) {
     result.funqName = loadName(oneLine, position);
     position += result.funqName.length();
 
-    //zacatek parametru
-    std::string paramEnd = btSyntax.normalBracketEnd;
+    //zacatek parametru (
     goodBracket paramStart = findStartBracket(oneLine, position);
-    if (!paramStart.exists) {
-        paramStart = findFunqStrBrc(oneLine, position);
-        paramEnd = btSyntax.functionCallEnd;
-    }
     if (!paramStart.exists) {
         return result;
     }
     position = paramStart.position;
 
-    //parametry [$]TYP JMENO oddelene carkou az po konec zavorky
+    //parametry [$]TYP JMENO oddelene carkou az po )
     while (true) {
+        goodBracket paramEnd = findEndBracket(oneLine, position);
+        if (paramEnd.exists) {
+            position = paramEnd.position;
+            break;
+        }
         while (position < oneLine.length() && oneLine[position] == ' ') {
             position += 1;
         }
         if (position >= oneLine.length()) {
-            break;
-        }
-        if (oneLine.substr(position, paramEnd.length()) == paramEnd) {
-            position += paramEnd.length();
             break;
         }
         bool isRef = false;
@@ -155,6 +144,19 @@ goodLoadedFunctionDefinition loadDefFunq(std::string &oneLine) {
         }
         std::string typeName = loadName(oneLine, position);
         position += typeName.length();
+
+        //velikost cisla (N)
+        int paramSize = 2;
+        goodBracket sizeStart = findStartBracket(oneLine, position);
+        if (sizeStart.exists) {
+            goodNumber size = findNumber(oneLine, sizeStart.position);
+            goodBracket sizeEnd = findEndBracket(oneLine, size.position);
+            if (size.exists && sizeEnd.exists) {
+                paramSize = size.value;
+                position = sizeEnd.position;
+            }
+        }
+
         while (position < oneLine.length() && oneLine[position] == ' ') {
             position += 1;
         }
@@ -167,6 +169,7 @@ goodLoadedFunctionDefinition loadDefFunq(std::string &oneLine) {
         result.inputRefs.push_back(isRef);
         result.inputTypes.push_back(typeName);
         result.inputNames.push_back(paramName);
+        result.inputSizes.push_back(paramSize);
 
         goodSeparator separator = findSeparator(oneLine, position);
         if (separator.exists) {
@@ -182,7 +185,21 @@ goodLoadedFunctionDefinition loadDefFunq(std::string &oneLine) {
         result.outputRef = true;
         position += btSyntax.isPointerSign.length();
     }
+    while (position < oneLine.length() && oneLine[position] == ' ') {
+        position += 1;
+    }
     result.outputType = loadName(oneLine, position);
+    position += result.outputType.length();
+
+    //velikost vystupniho cisla (N)
+    goodBracket sizeStart = findStartBracket(oneLine, position);
+    if (sizeStart.exists) {
+        goodNumber size = findNumber(oneLine, sizeStart.position);
+        goodBracket sizeEnd = findEndBracket(oneLine, size.position);
+        if (size.exists && sizeEnd.exists) {
+            result.outputSize = size.value;
+        }
+    }
     return result;
 }
 
@@ -427,7 +444,7 @@ goodBracket findSegmentEnd(std::string &oneLine) {
 
 //nacte jmeno (var, typ, funkce) od startPosition, tzn. vse do prvniho znaku ktery neni soucasti jmena
 //napsano pomoci AI
-//jmeno jsou jen pismena a _, mezery na zacatku preskoci, kdyz tam jmeno neni vrati ""
+//jmeno zacina pismenem nebo _, dal muzou byt i cislice, mezery na zacatku preskoci, kdyz tam jmeno neni vrati ""
 //jmeno konci i pred koncem volani "_/", protoze _ muze byt ve jmenu ("a_/" = jmeno a + konec volani)
 std::string loadName(std::string &lineCode, int startPosition) {
     int position = startPosition;
@@ -438,7 +455,8 @@ std::string loadName(std::string &lineCode, int startPosition) {
     while (position < lineCode.length()) {
         char oneChar = lineCode[position];
         bool isLetter = (oneChar >= 'a' && oneChar <= 'z') || (oneChar >= 'A' && oneChar <= 'Z');
-        if (!isLetter && oneChar != '_') {
+        bool isDigit = oneChar >= '0' && oneChar <= '9';
+        if (!isLetter && oneChar != '_' && !(isDigit && !name.empty())) {
             break;
         }
         if (lineCode.substr(position, btSyntax.functionCallEnd.length()) == btSyntax.functionCallEnd) {
@@ -480,24 +498,19 @@ goodConstructStart findConstructEnd(std::string &lineCode, int startPosition) {
 
 //promena: [prefixy] jmeno [.keys]
 //napsano pomoci AI
-//bez prefixu ($ a ! zpracovava parseBT), klice se tu nekontroluji, jen nactou
-//hleda ve varList odzadu (vnitrni scope stini vnejsi) a nic nevypisuje, proto ne pres returnVar
+//bez prefixu ($, ! a ~ zpracovava parseBT), klice se tu nekontroluji, jen nactou
+//promenna se hleda pres varHandle::returnVar
 goodVar findVar(std::string &lineCode, int startPosition, varHandle &vars) {
     int position = startPosition;
     while (position < lineCode.length() && lineCode[position] == ' ') {
         position += 1;
     }
     std::string name = loadName(lineCode, position);
+    //call je volani funkce, ne promenna (getValueNode zkousi findVar i na volani)
     if (name.empty() || name == lexSyntax.callFunq) {
         return {nullptr, {}, startPosition, false};
     }
-    variable* foundVar = nullptr;
-    for (int i = vars.varList.size() - 1; i >= 0; i--) {
-        if (vars.varList[i].name == name) {
-            foundVar = &vars.varList[i];
-            break;
-        }
-    }
+    variable* foundVar = vars.returnVar(name);
     if (foundVar == nullptr) {
         return {nullptr, {}, startPosition, false};
     }
@@ -524,7 +537,7 @@ goodVar findVar(std::string &lineCode, int startPosition, varHandle &vars) {
 //volani funkce: callFunq "call" + jmeno + functionCallStart "<"
 //napsano pomoci AI
 //call JMENO /_ ... _/ -> position = hned za /_ (zacatek argumentu), endOfFunq = za odpovidajicim _/
-//hleda ve functionList bez vypisu, proto ne pres functionHandle::findFunction
+//funkce se hleda pres functionHandle::findFunction
 goodFunction findFunction(std::string &lineCode, int startPosition, functionHandle &funcs) {
     int position = startPosition;
     while (position < lineCode.length() && lineCode[position] == ' ') {
@@ -547,13 +560,7 @@ goodFunction findFunction(std::string &lineCode, int startPosition, functionHand
         return {nullptr, startPosition, startPosition, false};
     }
 
-    basicFunction* foundFunq = nullptr;
-    for (int i = 0; i < funcs.functionList.size(); i++) {
-        if (funcs.functionList[i].name == name) {
-            foundFunq = &funcs.functionList[i];
-            break;
-        }
-    }
+    basicFunction* foundFunq = funcs.findFunction(name);
     if (foundFunq == nullptr) {
         return {nullptr, startPosition, startPosition, false};
     }
@@ -562,13 +569,15 @@ goodFunction findFunction(std::string &lineCode, int startPosition, functionHand
     int depth = 1;
     int endPosition = argsStart.position;
     while (endPosition < lineCode.length() && depth > 0) {
-        if (lineCode.substr(endPosition, btSyntax.functionCallEnd.length()) == btSyntax.functionCallEnd) {
+        goodBracket callEnd = findFunqEndBrc(lineCode, endPosition);
+        goodBracket callStart = findFunqStrBrc(lineCode, endPosition);
+        if (callEnd.exists) {
             depth -= 1;
-            endPosition += btSyntax.functionCallEnd.length();
+            endPosition = callEnd.position;
         }
-        else if (lineCode.substr(endPosition, btSyntax.functionCallStart.length()) == btSyntax.functionCallStart) {
+        else if (callStart.exists) {
             depth += 1;
-            endPosition += btSyntax.functionCallStart.length();
+            endPosition = callStart.position;
         }
         else {
             endPosition += 1;
@@ -603,7 +612,7 @@ goodNumber findNumber(std::string &lineCode, int startPosition) {
 
 //normalni zavorka: [prefixy] normalBracketStart "("
 //napsano pomoci AI
-//prefixy ($, !) tu nectu, ty zpracovava parseBT pres findSingleOperator
+//prefixy ($, !, ~) tu nectu, ty zpracovava parseBT pres findSingleOperator
 goodBracket findStartBracket(std::string &lineCode, int startPosition) {
     int position = startPosition;
     while (position < lineCode.length() && lineCode[position] == ' ') {
@@ -668,27 +677,53 @@ goodOperator findOperator(std::string &lineCode, int startPosition) {
     if (position >= lineCode.length()) {
         return {operators::plus, startPosition, false};
     }
-    if (lineCode.substr(position, btSyntax.functionCallStart.length()) == btSyntax.functionCallStart) {
+    if (findFunqStrBrc(lineCode, position).exists) {
         return {operators::plus, startPosition, false};
     }
-    //poradi je dulezite: nejdriv 2 znakove
-    std::vector<std::string> signs = {btSyntax.equalSign, btSyntax.eqBigSign, btSyntax.eqSmlSign, btSyntax.notEqualSign,
-        btSyntax.plusSign, btSyntax.minusSign, btSyntax.timesSign, btSyntax.divideSign,
-        btSyntax.andSign, btSyntax.orSign, btSyntax.bigSign, btSyntax.smlSign};
-    std::vector<operators> ops = {operators::equal, operators::ebig, operators::esml, operators::notEqual,
-        operators::plus, operators::remove, operators::multiply, operators::divade,
-        operators::andOperator, operators::orOperator, operators::bigger, operators::lesser};
-    for (int i = 0; i < signs.size(); i++) {
-        if (lineCode.substr(position, signs[i].length()) == signs[i]) {
-            return {ops[i], position + (int)signs[i].length(), true};
-        }
+    //2 znakove
+    if (lineCode.substr(position, btSyntax.equalSign.length()) == btSyntax.equalSign) {
+        return {operators::equal, position + (int)btSyntax.equalSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.eqBigSign.length()) == btSyntax.eqBigSign) {
+        return {operators::ebig, position + (int)btSyntax.eqBigSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.eqSmlSign.length()) == btSyntax.eqSmlSign) {
+        return {operators::esml, position + (int)btSyntax.eqSmlSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.notEqualSign.length()) == btSyntax.notEqualSign) {
+        return {operators::notEqual, position + (int)btSyntax.notEqualSign.length(), true};
+    }
+    //1 znakove
+    if (lineCode.substr(position, btSyntax.plusSign.length()) == btSyntax.plusSign) {
+        return {operators::plus, position + (int)btSyntax.plusSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.minusSign.length()) == btSyntax.minusSign) {
+        return {operators::remove, position + (int)btSyntax.minusSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.timesSign.length()) == btSyntax.timesSign) {
+        return {operators::multiply, position + (int)btSyntax.timesSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.divideSign.length()) == btSyntax.divideSign) {
+        return {operators::divade, position + (int)btSyntax.divideSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.andSign.length()) == btSyntax.andSign) {
+        return {operators::andOperator, position + (int)btSyntax.andSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.orSign.length()) == btSyntax.orSign) {
+        return {operators::orOperator, position + (int)btSyntax.orSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.bigSign.length()) == btSyntax.bigSign) {
+        return {operators::bigger, position + (int)btSyntax.bigSign.length(), true};
+    }
+    if (lineCode.substr(position, btSyntax.smlSign.length()) == btSyntax.smlSign) {
+        return {operators::lesser, position + (int)btSyntax.smlSign.length(), true};
     }
     return {operators::plus, startPosition, false};
 }
 
 
 //napsano pomoci AI
-//! -> notOperBit, $ -> isPointer, kdyz tam prefix neni: {noSingleOper, startPosition}
+//! -> notOperBit, ~ -> notOperByte, $ -> isPointer, kdyz tam prefix neni: {noSingleOper, startPosition}
 goodSingleOperator findSingleOperator(std::string &lineCode, int startPosition) {
     int position = startPosition;
     while (position < lineCode.length() && lineCode[position] == ' ') {
@@ -696,6 +731,9 @@ goodSingleOperator findSingleOperator(std::string &lineCode, int startPosition) 
     }
     if (position < lineCode.length() && lineCode.substr(position, btSyntax.notSign.length()) == btSyntax.notSign) {
         return {singleOperator::notOperBit, position + (int)btSyntax.notSign.length()};
+    }
+    if (position < lineCode.length() && lineCode.substr(position, btSyntax.negateBytes.length()) == btSyntax.negateBytes) {
+        return {singleOperator::notOperByte, position + (int)btSyntax.negateBytes.length()};
     }
     if (position < lineCode.length() && lineCode.substr(position, btSyntax.isPointerSign.length()) == btSyntax.isPointerSign) {
         return {singleOperator::isPointer, position + (int)btSyntax.isPointerSign.length()};

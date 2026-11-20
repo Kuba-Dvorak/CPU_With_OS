@@ -493,6 +493,7 @@ std::string logOperToString(logOperators oper) {
     if (oper == logOperators::orOp) {
         return asmSyntax.or8;
     }
+    return asmSyntax.negateBit;
 }
 
 
@@ -502,6 +503,7 @@ void logicalOperation(place numA, place numB, place placeTo, fullCompiledCode &c
     if (cleanPlaceTo) {
         cleanPlace(placeTo, code);
     }
+
     if (opers == logOperators::notBitOp) {
         loadAddr(numA.pointer, code, asmSyntax.reg1);
         code.addInstruction(asmSyntax.setReg + asmSyntax.reg2 + "0");
@@ -586,5 +588,3 @@ void logicalOperation(place numA, place numB, place placeTo, fullCompiledCode &c
         }
     }
 }
-
-

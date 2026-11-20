@@ -533,6 +533,7 @@ place parseBT(int &textStartPos, std::string &oneLine, fullCompiledCode &code, s
 place createParsedSegment(typee* typePlace, segmentManager &scope, int &textStartPos, std::string &oneLine, fullCompiledCode &code, varHandle &vars, functionHandle &funqHandle) {
     goodConstructStart constStart = findConstructStart(oneLine, textStartPos);
     if (constStart.exists) {
+        textStartPos = constStart.position;
         int zeroPointer = scope.reqFreeSub(0);
         int startPointer = scope.reqFreeSub(typePlace->size);
         for (int i = 0; i < typePlace->params.size(); i++) {

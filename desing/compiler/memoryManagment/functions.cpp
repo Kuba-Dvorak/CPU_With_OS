@@ -20,7 +20,7 @@ struct basicFunction {
     int changeBackerInstr;
 
     bool define(std::string name, std::vector<bool> &isReferences, std::vector<std::string> &varNames, std::vector<std::string> &varTypesNames
-        , std::string &outPutTypeName, bool outputIsRef, typesHandle &handle, fullCompiledCode &code) {
+        , std::string &outPutTypeName, std::vector<int> &posSizes, int posInputSize, bool outputIsRef, typesHandle &handle, fullCompiledCode &code) {
         if ((varNames.size() != varTypesNames.size()) || (varNames.size() != isReferences.size())) {
             std::cout << "Function hasn't got the same amount of names and types" << std::endl;
             return false;
@@ -28,11 +28,12 @@ struct basicFunction {
 
         this->name = name;
         mySegmentManager = {{}, {}};
+        mySegmentManager.createNewScope(false, false, code, {});
         changeBackerInstr = code.currentLine;
         code.addInstruction(asmSyntax.jumpDictate);
         std::string returName = returnNamer + "Var";
-        myVarHandlerer.addNewVariable(returName,  handle.findType(outPutTypeName),
-            mySegmentManager.reqFreeForVar(handle.findType(outPutTypeName)->size, returName), outputIsRef);
+        myVarHandlerer.addNewVariable(returName,  handle.findType(outPutTypeName, posInputSize),
+            mySegmentManager.reqFreeForVar(handle.findType(outPutTypeName, posInputSize)->size, returName), outputIsRef);
         outputType = &myVarHandlerer.varList.back();
         jumpToFunction = code.currentLine;
         //misto kde je navrat na origin
@@ -40,7 +41,7 @@ struct basicFunction {
 
 
         for (int i = 0; i < varNames.size(); i++) {
-            typee* theType = handle.findType(varTypesNames[i]);
+            typee* theType = handle.findType(varTypesNames[i], posSizes[i]);
             if (isReferences[i]) {
                 myVarHandlerer.addNewVariable(varNames[i],  theType,
             mySegmentManager.reqFreeForVar(2, varNames[i]), isReferences[i]);
@@ -103,7 +104,7 @@ struct functionHandle {
                 return &functionList[i];
             }
         }
-        std::cout << "Type doesn't exist: " << name << "\n" << std::endl;
+        std::cout << "Function doesn't exist: " << name << "\n" << std::endl;
         return nullptr;
     }
 };

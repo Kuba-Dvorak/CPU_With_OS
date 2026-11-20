@@ -38,7 +38,6 @@ struct syntaxDefiners {
     std::string callFunq = "call"; //volani funkce
     std::string breakSignature = "break"; //AI
     std::string varSignature = "var"; //AI, deklarace promenne
-    std::string varTypeSeparator = ":"; //AI, oddeluje jmeno a typ v deklaraci promenne (var x: number;)
     std::string setSignature = "="; //AI, prirazeni do promenne
 };
 
@@ -56,9 +55,10 @@ struct syntaxForBT {
     std::string eqBigSign = "=>";
     std::string eqSmlSign = "=<";
     std::string notEqualSign = "=!";
+    std::string negateBytes = "~"; //bytova negace
 
     //veci co dat pred var nebo pred celou ozavorkovanou cast v BT
-    std::string notSign = "!"; //
+    std::string notSign = "!"; // bitova negace
     std::string isPointerSign = "$"; //rika 2 veci: 1. ze vec pred promenou/zavorkou a oznaci ji za pointer
                                      //             2. ze promena ma byt zmenena orignal (pokud se jedna o pointer
 
@@ -198,6 +198,8 @@ struct goodLoadedFunctionDefinition {
     std::vector<std::string> inputTypes;
     std::string outputType;
     bool outputRef;
+    std::vector<int> inputSizes; //possible sizes do funkce davat k number, ostatni bez number se ignoruje
+    int outputSize;
 };
 
 

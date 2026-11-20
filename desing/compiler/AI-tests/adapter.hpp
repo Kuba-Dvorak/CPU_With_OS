@@ -112,7 +112,9 @@ inline void defineFunction(Function &f, std::string name, std::vector<std::strin
     f.paramRefs = paramRefs;
     w.funcs.functionList.emplace_back();
     f.fn = &w.funcs.functionList.back();
-    f.fn->define(name, paramRefs, paramNames, paramTypes, outType, false, w.types, code);
+    // velikosti cisel jako driv (findType bez velikosti = 2 B)
+    std::vector<int> paramSizes(paramTypes.size(), 2);
+    f.fn->define(name, paramRefs, paramNames, paramTypes, outType, paramSizes, 2, false, w.types, code);
 }
 
 inline Frame &bodyFrame(Function &f) { return f.fn->mySegmentManager; }

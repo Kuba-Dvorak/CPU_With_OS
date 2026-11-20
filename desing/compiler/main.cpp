@@ -38,6 +38,7 @@ struct fullCompiler {
             std::ofstream stream(compileTo / fileName);
             for (int i = 0; i < myCompiler.compiledCode.currentLine; i++) {
                 stream.write(myCompiler.compiledCode.code[i].data(), myCompiler.compiledCode.code[i].length());
+                stream.write("\n", 1);
             }
         }
         else {
